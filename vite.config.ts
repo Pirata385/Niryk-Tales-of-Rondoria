@@ -13,6 +13,8 @@ export default defineConfig(({ mode }) => {
         '@shared': fileURLToPath(new URL('./src/shared', import.meta.url)),
         '@server': fileURLToPath(new URL('./src/server', import.meta.url)),
         '@client': fileURLToPath(new URL('./src/client', import.meta.url)),
+        // the single file embeds decompressed models (tools/raw-models.mjs): no WebAssembly decoder
+        '@models': fileURLToPath(new URL(single ? './.cache/models-raw' : './assets/models', import.meta.url)),
       },
     },
     define: { __SINGLE_FILE__: JSON.stringify(single) },
