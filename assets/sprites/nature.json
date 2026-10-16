@@ -1,0 +1,1218 @@
+{
+ "image": "nature.png",
+ "size": [
+  1024,
+  1024
+ ],
+ "pxPerMeter": 32,
+ "frames": {
+  "birch_1": {
+   "anchor": [
+    46.0,
+    148.0
+   ],
+   "kind": "tree",
+   "collider": 0.15,
+   "sway": 0.06,
+   "radius": 1.7,
+   "shadow": "birch_1_shadow",
+   "rect": [
+    426,
+    449,
+    87,
+    151
+   ]
+  },
+  "birch_1_shadow": {
+   "anchor": [
+    36.0,
+    4.0
+   ],
+   "kind": "shadow",
+   "rect": [
+    769,
+    761,
+    84,
+    39
+   ]
+  },
+  "birch_2": {
+   "anchor": [
+    49.0,
+    161.0
+   ],
+   "kind": "tree",
+   "collider": 0.15,
+   "sway": 0.06,
+   "radius": 1.7,
+   "shadow": "birch_2_shadow",
+   "rect": [
+    333,
+    449,
+    91,
+    164
+   ]
+  },
+  "birch_2_shadow": {
+   "anchor": [
+    38.0,
+    3.0
+   ],
+   "kind": "shadow",
+   "rect": [
+    678,
+    761,
+    89,
+    40
+   ]
+  },
+  "boulder_1": {
+   "anchor": [
+    27.5,
+    33.0
+   ],
+   "kind": "rock",
+   "collider": 0.75,
+   "radius": 0.8,
+   "shadow": "boulder_1_shadow",
+   "rect": [
+    919,
+    761,
+    51,
+    36
+   ]
+  },
+  "boulder_1_shadow": {
+   "anchor": [
+    26.2,
+    12.1
+   ],
+   "kind": "shadow",
+   "rect": [
+    270,
+    812,
+    59,
+    28
+   ]
+  },
+  "bush_1": {
+   "anchor": [
+    29.0,
+    31.0
+   ],
+   "kind": "bush",
+   "collider": 0.55,
+   "sway": 0.02,
+   "radius": 0.9,
+   "shadow": "bush_1_shadow",
+   "rect": [
+    211,
+    812,
+    57,
+    31
+   ]
+  },
+  "bush_1_shadow": {
+   "anchor": [
+    25.8,
+    7.6
+   ],
+   "kind": "shadow",
+   "rect": [
+    924,
+    812,
+    59,
+    19
+   ]
+  },
+  "bush_2": {
+   "anchor": [
+    28.0,
+    31.0
+   ],
+   "kind": "bush",
+   "collider": 0.55,
+   "sway": 0.02,
+   "radius": 0.9,
+   "shadow": "bush_2_shadow",
+   "rect": [
+    0,
+    812,
+    56,
+    32
+   ]
+  },
+  "bush_2_shadow": {
+   "anchor": [
+    27.8,
+    7.6
+   ],
+   "kind": "shadow",
+   "rect": [
+    0,
+    846,
+    60,
+    19
+   ]
+  },
+  "bush_3": {
+   "anchor": [
+    28.0,
+    31.0
+   ],
+   "kind": "bush",
+   "collider": 0.55,
+   "sway": 0.02,
+   "radius": 0.9,
+   "shadow": "bush_3_shadow",
+   "rect": [
+    58,
+    812,
+    56,
+    32
+   ]
+  },
+  "bush_3_shadow": {
+   "anchor": [
+    26.8,
+    7.6
+   ],
+   "kind": "shadow",
+   "rect": [
+    62,
+    846,
+    59,
+    19
+   ]
+  },
+  "bush_4": {
+   "anchor": [
+    21.0,
+    24.0
+   ],
+   "kind": "bush",
+   "collider": 0.4,
+   "sway": 0.02,
+   "radius": 0.6,
+   "shadow": "bush_4_shadow",
+   "rect": [
+    395,
+    812,
+    42,
+    25
+   ]
+  },
+  "bush_4_shadow": {
+   "anchor": [
+    20.6,
+    6.5
+   ],
+   "kind": "shadow",
+   "rect": [
+    277,
+    846,
+    43,
+    15
+   ]
+  },
+  "dead_1": {
+   "anchor": [
+    44.5,
+    133.0
+   ],
+   "kind": "tree",
+   "collider": 0.25,
+   "radius": 1.6,
+   "shadow": "dead_1_shadow",
+   "rect": [
+    515,
+    449,
+    98,
+    136
+   ]
+  },
+  "dead_1_shadow": {
+   "anchor": [
+    33.2,
+    3.0
+   ],
+   "kind": "shadow",
+   "rect": [
+    365,
+    846,
+    81,
+    14
+   ]
+  },
+  "decal_clover_1": {
+   "anchor": [
+    28.5,
+    28.5
+   ],
+   "kind": "decal",
+   "rect": [
+    716,
+    696,
+    55,
+    54
+   ]
+  },
+  "decal_flowers_1": {
+   "anchor": [
+    26.5,
+    31.5
+   ],
+   "kind": "decal",
+   "rect": [
+    308,
+    696,
+    59,
+    63
+   ]
+  },
+  "decal_flowers_2": {
+   "anchor": [
+    40.0,
+    35.0
+   ],
+   "kind": "decal",
+   "rect": [
+    0,
+    619,
+    77,
+    75
+   ]
+  },
+  "decal_flowers_3": {
+   "anchor": [
+    47.0,
+    47.0
+   ],
+   "kind": "decal",
+   "rect": [
+    794,
+    449,
+    94,
+    92
+   ]
+  },
+  "decal_flowers_4": {
+   "anchor": [
+    17.5,
+    22.5
+   ],
+   "kind": "decal",
+   "rect": [
+    304,
+    761,
+    43,
+    48
+   ]
+  },
+  "decal_flowers_5": {
+   "anchor": [
+    26.5,
+    32.5
+   ],
+   "kind": "decal",
+   "rect": [
+    817,
+    619,
+    58,
+    65
+   ]
+  },
+  "decal_flowers_6": {
+   "anchor": [
+    36.0,
+    40.0
+   ],
+   "kind": "decal",
+   "rect": [
+    890,
+    449,
+    70,
+    78
+   ]
+  },
+  "decal_leaves_autumn": {
+   "anchor": [
+    42.0,
+    52.0
+   ],
+   "kind": "decal",
+   "rect": [
+    693,
+    449,
+    99,
+    103
+   ]
+  },
+  "decal_leaves_dry": {
+   "anchor": [
+    63.0,
+    35.0
+   ],
+   "kind": "decal",
+   "rect": [
+    79,
+    619,
+    116,
+    74
+   ]
+  },
+  "decal_pebbles_1": {
+   "anchor": [
+    21.0,
+    16.0
+   ],
+   "kind": "decal",
+   "rect": [
+    972,
+    761,
+    41,
+    35
+   ]
+  },
+  "fern_1": {
+   "anchor": [
+    17.0,
+    15.0
+   ],
+   "kind": "grass",
+   "sway": 0.05,
+   "rect": [
+    168,
+    846,
+    34,
+    18
+   ]
+  },
+  "fern_2": {
+   "anchor": [
+    10.0,
+    10.0
+   ],
+   "kind": "grass",
+   "sway": 0.05,
+   "rect": [
+    597,
+    846,
+    21,
+    13
+   ]
+  },
+  "grass_1": {
+   "anchor": [
+    4.0,
+    10.0
+   ],
+   "kind": "grass",
+   "rect": [
+    662,
+    846,
+    11,
+    11
+   ]
+  },
+  "grass_2": {
+   "anchor": [
+    5.0,
+    11.0
+   ],
+   "kind": "grass",
+   "rect": [
+    648,
+    846,
+    12,
+    12
+   ]
+  },
+  "grass_3": {
+   "anchor": [
+    6.5,
+    10.0
+   ],
+   "kind": "grass",
+   "rect": [
+    675,
+    846,
+    12,
+    11
+   ]
+  },
+  "grass_4": {
+   "anchor": [
+    8.0,
+    10.0
+   ],
+   "kind": "grass",
+   "rect": [
+    689,
+    846,
+    15,
+    11
+   ]
+  },
+  "grass_flower_l": {
+   "anchor": [
+    5.0,
+    15.0
+   ],
+   "kind": "grass",
+   "rect": [
+    263,
+    846,
+    12,
+    16
+   ]
+  },
+  "grass_flower_w": {
+   "anchor": [
+    8.0,
+    15.0
+   ],
+   "kind": "grass",
+   "rect": [
+    246,
+    846,
+    15,
+    16
+   ]
+  },
+  "grass_flower_y": {
+   "anchor": [
+    8.0,
+    14.0
+   ],
+   "kind": "grass",
+   "rect": [
+    347,
+    846,
+    16,
+    15
+   ]
+  },
+  "hedge_1": {
+   "anchor": [
+    46.5,
+    32.0
+   ],
+   "kind": "bush",
+   "collider": 1.2,
+   "sway": 0.01,
+   "radius": 1.3,
+   "shadow": "hedge_1_shadow",
+   "rect": [
+    116,
+    812,
+    93,
+    32
+   ]
+  },
+  "hedge_1_shadow": {
+   "anchor": [
+    38.5,
+    1.0
+   ],
+   "kind": "shadow",
+   "rect": [
+    448,
+    846,
+    91,
+    14
+   ]
+  },
+  "log_1": {
+   "anchor": [
+    34.0,
+    20.0
+   ],
+   "kind": "prop",
+   "collider": 0.5,
+   "radius": 1.0,
+   "shadow": "log_1_shadow",
+   "rect": [
+    730,
+    812,
+    69,
+    23
+   ]
+  },
+  "log_1_shadow": {
+   "anchor": [
+    28.0,
+    3.0
+   ],
+   "kind": "shadow",
+   "rect": [
+    706,
+    846,
+    69,
+    10
+   ]
+  },
+  "mushrooms_1": {
+   "anchor": [
+    7.0,
+    7.0
+   ],
+   "kind": "grass",
+   "rect": [
+    777,
+    846,
+    10,
+    9
+   ]
+  },
+  "oak_autumn_1": {
+   "anchor": [
+    84.8,
+    165.0
+   ],
+   "kind": "tree",
+   "collider": 0.35,
+   "sway": 0.05,
+   "radius": 2.5,
+   "shadow": "oak_autumn_1_shadow",
+   "rect": [
+    162,
+    449,
+    169,
+    168
+   ]
+  },
+  "oak_autumn_1_shadow": {
+   "anchor": [
+    74.8,
+    7.0
+   ],
+   "kind": "shadow",
+   "rect": [
+    509,
+    761,
+    167,
+    47
+   ]
+  },
+  "oak_blossom_1": {
+   "anchor": [
+    129.5,
+    184.0
+   ],
+   "kind": "tree",
+   "collider": 0.4,
+   "sway": 0.05,
+   "radius": 3.9,
+   "shadow": "oak_blossom_1_shadow",
+   "rect": [
+    650,
+    0,
+    256,
+    187
+   ]
+  },
+  "oak_blossom_1_shadow": {
+   "anchor": [
+    121.5,
+    14.0
+   ],
+   "kind": "shadow",
+   "rect": [
+    560,
+    619,
+    255,
+    65
+   ]
+  },
+  "oak_hero_1": {
+   "anchor": [
+    128.0,
+    255.0
+   ],
+   "kind": "tree",
+   "collider": 0.6,
+   "sway": 0.04,
+   "radius": 3.8,
+   "shadow": "oak_hero_1_shadow",
+   "rect": [
+    131,
+    0,
+    257,
+    258
+   ]
+  },
+  "oak_hero_1_shadow": {
+   "anchor": [
+    114.0,
+    10.0
+   ],
+   "kind": "shadow",
+   "rect": [
+    301,
+    619,
+    257,
+    72
+   ]
+  },
+  "oak_lean_1": {
+   "anchor": [
+    67.5,
+    165.0
+   ],
+   "kind": "tree",
+   "collider": 0.33,
+   "sway": 0.05,
+   "radius": 2.4,
+   "shadow": "oak_lean_1_shadow",
+   "rect": [
+    0,
+    449,
+    160,
+    168
+   ]
+  },
+  "oak_lean_1_shadow": {
+   "anchor": [
+    57.5,
+    7.0
+   ],
+   "kind": "shadow",
+   "rect": [
+    349,
+    761,
+    158,
+    47
+   ]
+  },
+  "oak_round_1": {
+   "anchor": [
+    83.5,
+    171.0
+   ],
+   "kind": "tree",
+   "collider": 0.35,
+   "sway": 0.05,
+   "radius": 2.5,
+   "shadow": "oak_round_1_shadow",
+   "rect": [
+    585,
+    261,
+    169,
+    174
+   ]
+  },
+  "oak_round_1_shadow": {
+   "anchor": [
+    73.5,
+    8.0
+   ],
+   "kind": "shadow",
+   "rect": [
+    773,
+    696,
+    167,
+    50
+   ]
+  },
+  "oak_round_2": {
+   "anchor": [
+    86.8,
+    169.0
+   ],
+   "kind": "tree",
+   "collider": 0.35,
+   "sway": 0.05,
+   "radius": 2.5,
+   "shadow": "oak_round_2_shadow",
+   "rect": [
+    756,
+    261,
+    170,
+    172
+   ]
+  },
+  "oak_round_2_shadow": {
+   "anchor": [
+    76.8,
+    8.0
+   ],
+   "kind": "shadow",
+   "rect": [
+    0,
+    761,
+    168,
+    49
+   ]
+  },
+  "oak_tall_1": {
+   "anchor": [
+    66.6,
+    192.0
+   ],
+   "kind": "tree",
+   "collider": 0.33,
+   "sway": 0.05,
+   "radius": 2.0,
+   "shadow": "oak_tall_1_shadow",
+   "rect": [
+    514,
+    0,
+    134,
+    195
+   ]
+  },
+  "oak_tall_1_shadow": {
+   "anchor": [
+    54.6,
+    5.0
+   ],
+   "kind": "shadow",
+   "rect": [
+    170,
+    761,
+    132,
+    49
+   ]
+  },
+  "oak_twin_1": {
+   "anchor": [
+    105.4,
+    183.0
+   ],
+   "kind": "tree",
+   "collider": 0.5,
+   "sway": 0.05,
+   "radius": 3.2,
+   "shadow": "oak_twin_1_shadow",
+   "rect": [
+    0,
+    261,
+    212,
+    186
+   ]
+  },
+  "oak_twin_1_shadow": {
+   "anchor": [
+    94.4,
+    12.0
+   ],
+   "kind": "shadow",
+   "rect": [
+    0,
+    696,
+    210,
+    63
+   ]
+  },
+  "oak_wide_1": {
+   "anchor": [
+    128.3,
+    180.0
+   ],
+   "kind": "tree",
+   "collider": 0.4,
+   "sway": 0.05,
+   "radius": 3.9,
+   "shadow": "oak_wide_1_shadow",
+   "rect": [
+    214,
+    261,
+    259,
+    183
+   ]
+  },
+  "oak_wide_1_shadow": {
+   "anchor": [
+    119.3,
+    12.0
+   ],
+   "kind": "shadow",
+   "rect": [
+    369,
+    696,
+    257,
+    60
+   ]
+  },
+  "pine_1": {
+   "anchor": [
+    53.0,
+    177.0
+   ],
+   "kind": "tree",
+   "collider": 0.3,
+   "sway": 0.04,
+   "radius": 1.6,
+   "shadow": "pine_1_shadow",
+   "rect": [
+    475,
+    261,
+    108,
+    180
+   ]
+  },
+  "pine_1_shadow": {
+   "anchor": [
+    16.6,
+    3.2
+   ],
+   "kind": "shadow",
+   "rect": [
+    628,
+    696,
+    86,
+    55
+   ]
+  },
+  "pine_2": {
+   "anchor": [
+    61.5,
+    211.0
+   ],
+   "kind": "tree",
+   "collider": 0.3,
+   "sway": 0.04,
+   "radius": 1.8,
+   "shadow": "pine_2_shadow",
+   "rect": [
+    390,
+    0,
+    122,
+    214
+   ]
+  },
+  "pine_2_shadow": {
+   "anchor": [
+    13.3,
+    2.8
+   ],
+   "kind": "shadow",
+   "rect": [
+    212,
+    696,
+    94,
+    63
+   ]
+  },
+  "pine_s_1": {
+   "anchor": [
+    38.0,
+    108.0
+   ],
+   "kind": "tree",
+   "collider": 0.2,
+   "sway": 0.04,
+   "radius": 1.1,
+   "shadow": "pine_s_1_shadow",
+   "rect": [
+    615,
+    449,
+    76,
+    111
+   ]
+  },
+  "pine_s_1_shadow": {
+   "anchor": [
+    13.8,
+    3.5
+   ],
+   "kind": "shadow",
+   "rect": [
+    855,
+    761,
+    62,
+    39
+   ]
+  },
+  "pine_t_1": {
+   "anchor": [
+    63.5,
+    256.0
+   ],
+   "kind": "tree",
+   "collider": 0.35,
+   "sway": 0.03,
+   "radius": 1.9,
+   "shadow": "pine_t_1_shadow",
+   "rect": [
+    0,
+    0,
+    129,
+    259
+   ]
+  },
+  "pine_t_1_shadow": {
+   "anchor": [
+    10.5,
+    2.5
+   ],
+   "kind": "shadow",
+   "rect": [
+    197,
+    619,
+    102,
+    73
+   ]
+  },
+  "rock_buried_1": {
+   "anchor": [
+    21.0,
+    14.0
+   ],
+   "kind": "rock",
+   "collider": 0.4,
+   "radius": 0.6,
+   "shadow": "rock_buried_1_shadow",
+   "rect": [
+    204,
+    846,
+    40,
+    17
+   ]
+  },
+  "rock_buried_1_shadow": {
+   "anchor": [
+    22.0,
+    9.9
+   ],
+   "kind": "shadow",
+   "rect": [
+    829,
+    812,
+    47,
+    21
+   ]
+  },
+  "rock_group_1": {
+   "anchor": [
+    32.5,
+    21.0
+   ],
+   "kind": "rock",
+   "collider": 0.95,
+   "radius": 1.2,
+   "shadow": "rock_group_1_shadow",
+   "rect": [
+    457,
+    812,
+    70,
+    24
+   ]
+  },
+  "rock_group_1_shadow": {
+   "anchor": [
+    43.7,
+    10.3
+   ],
+   "kind": "shadow",
+   "rect": [
+    621,
+    812,
+    92,
+    23
+   ]
+  },
+  "rock_m1": {
+   "anchor": [
+    19.5,
+    20.0
+   ],
+   "kind": "rock",
+   "collider": 0.45,
+   "radius": 0.55,
+   "shadow": "rock_m1_shadow",
+   "rect": [
+    529,
+    812,
+    37,
+    23
+   ]
+  },
+  "rock_m1_shadow": {
+   "anchor": [
+    20.1,
+    8.6
+   ],
+   "kind": "shadow",
+   "rect": [
+    878,
+    812,
+    44,
+    20
+   ]
+  },
+  "rock_m2": {
+   "anchor": [
+    21.5,
+    16.0
+   ],
+   "kind": "rock",
+   "collider": 0.5,
+   "radius": 0.65,
+   "shadow": "rock_m2_shadow",
+   "rect": [
+    123,
+    846,
+    43,
+    19
+   ]
+  },
+  "rock_m2_shadow": {
+   "anchor": [
+    23.4,
+    10.6
+   ],
+   "kind": "shadow",
+   "rect": [
+    568,
+    812,
+    51,
+    23
+   ]
+  },
+  "rock_s1": {
+   "anchor": [
+    10.5,
+    11.0
+   ],
+   "kind": "rock",
+   "collider": 0.2,
+   "radius": 0.3,
+   "shadow": "rock_s1_shadow",
+   "rect": [
+    541,
+    846,
+    20,
+    14
+   ]
+  },
+  "rock_s1_shadow": {
+   "anchor": [
+    12.1,
+    5.4
+   ],
+   "kind": "shadow",
+   "rect": [
+    620,
+    846,
+    26,
+    12
+   ]
+  },
+  "rock_s2": {
+   "anchor": [
+    11.0,
+    12.0
+   ],
+   "kind": "rock",
+   "collider": 0.25,
+   "radius": 0.35,
+   "shadow": "rock_s2_shadow",
+   "rect": [
+    322,
+    846,
+    23,
+    15
+   ]
+  },
+  "rock_s2_shadow": {
+   "anchor": [
+    14.8,
+    6.4
+   ],
+   "kind": "shadow",
+   "rect": [
+    563,
+    846,
+    32,
+    14
+   ]
+  },
+  "stump_1": {
+   "anchor": [
+    18.0,
+    23.0
+   ],
+   "kind": "prop",
+   "collider": 0.35,
+   "radius": 0.4,
+   "shadow": "stump_1_shadow",
+   "rect": [
+    357,
+    812,
+    36,
+    26
+   ]
+  },
+  "stump_1_shadow": {
+   "anchor": [
+    10.0,
+    2.0
+   ],
+   "kind": "shadow",
+   "rect": [
+    789,
+    846,
+    31,
+    8
+   ]
+  },
+  "tall_flowers_l": {
+   "anchor": [
+    6.0,
+    21.0
+   ],
+   "kind": "grass",
+   "sway": 0.08,
+   "rect": [
+    715,
+    812,
+    13,
+    23
+   ]
+  },
+  "tall_flowers_y": {
+   "anchor": [
+    6.0,
+    23.0
+   ],
+   "kind": "grass",
+   "sway": 0.08,
+   "rect": [
+    439,
+    812,
+    16,
+    25
+   ]
+  },
+  "tall_grass_1": {
+   "anchor": [
+    9.0,
+    25.0
+   ],
+   "kind": "grass",
+   "sway": 0.12,
+   "rect": [
+    331,
+    812,
+    24,
+    27
+   ]
+  },
+  "tall_grass_2": {
+   "anchor": [
+    11.0,
+    20.0
+   ],
+   "kind": "grass",
+   "sway": 0.12,
+   "rect": [
+    801,
+    812,
+    26,
+    22
+   ]
+  }
+ }
+}
