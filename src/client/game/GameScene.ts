@@ -240,7 +240,7 @@ export async function runGame(ctx: AppContext, appearance: Appearance, onNewChar
     const focus = [{ x: self.x, z: self.z }];
     for (const e of client.entities.values()) if (e.kind === 'wolf' && Math.hypot(e.x - self.x, e.z - self.z) < 10) focus.push({ x: e.x, z: e.z });
     worldView.billboards.setFocus(focus);
-    worldView.update(dt);
+    worldView.update(dt, self.x, self.z);
     if (me) {
       hud.setHealth(appearance.name, me.hp, me.maxHp);
       hud.showDeath(dead, dead && client.serverTime - me.animStart > 3);

@@ -83,6 +83,13 @@ def nature_sprites():
     # flat ground decals
     for i, cols in enumerate([("white",), ("yellow",), ("lilac",), ("blue",), ("red",), ("white", "yellow", "lilac", "blue")], 1):
         add(f"decal_flowers_{i}", N.flower_decal(i, cols, size_m=1.6 + 0.45 * (i % 4)), "decal")
+    # small single-color clumps and long drifts (G1 review: more variety, less "round stamps")
+    for i, (col, size, aspect) in enumerate([("white", 1.0, 1.0), ("yellow", 1.1, 1.0), ("lilac", 0.9, 1.0), ("blue", 1.2, 1.0),
+                                             ("white", 2.6, 2.4), ("yellow", 2.2, 2.1), ("lilac", 2.4, 2.6)], 7):
+        add(f"decal_flowers_{i}", N.flower_decal(i * 3, (col,), size_m=size, aspect=aspect), "decal")
+    for col in N.BUTTERFLY:
+        for fr in (0, 1):
+            add(f"butterfly_{col}_{fr}", N.butterfly(col, fr), "fx")
     add("decal_leaves_dry", N.leaves_decal(1), "decal")
     add("decal_leaves_autumn", N.leaves_decal(2, (("#e0a040", "#8f4030"), ("#d0702e", "#7a3c29"))), "decal")
     add("decal_clover_1", N.clover_decal(3), "decal")
@@ -142,7 +149,7 @@ def build_nature():
 def build_ground():
     tiles = {
         "ground_grass_a": G.grass(1),
-        "ground_grass_b": G.grass(2, G.GRASS_B, flowers=1.0),
+        "ground_grass_b": G.grass(2, G.GRASS_B, flowers=1.0, contrast=0.6),
         "ground_dirt": G.dirt(3),
         "ground_cobble": G.cobble(4),
         "noise": G.noise_rgb(5),

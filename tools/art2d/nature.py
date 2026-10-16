@@ -586,28 +586,41 @@ def tall_grass(seed=0, width_px=26, height_px=24, tone_shift=0):
 
 
 def fern(seed=0, size_px=30):
+    """A fan of arching fronds. Each frond is a filled, tapered blade with serrated leaflet edges
+    (back fronds darker, side fronds lighter, a light rim on the sun side) so the clump reads as
+    separate fronds and not as a round bush."""
     rng = np.random.default_rng(seed)
-    W, H = size_px + 10, int(size_px * 1.0) + 8
+    W, H = int(size_px * 1.5) + 10, int(size_px * 1.05) + 8
     c = Canvas(W, H)
+    xs, ys = c.grid()
     base = (W / 2, H - 3)
     fronds = int(rng.integers(6, 9))
-    order = sorted(range(fronds), key=lambda k: abs(k - fronds / 2), reverse=True)
-    for k in order:
-        a = math.pi * (0.12 + 0.76 * k / (fronds - 1))
-        ln = size_px * rng.uniform(0.42, 0.55)
-        pts = []
-        for t in np.linspace(0, 1, 7):
-            droop = t * t * ln * 0.3
-            pts.append((base[0] + math.cos(a) * ln * t, base[1] - math.sin(a) * ln * t * 1.15 + droop))
-        tone = 2 if math.sin(a) > 0.8 else 1
-        rib = branch_mask(c, pts, 1.6, 0.8)
-        c.fill(rib, GRASS[tone])
-        for i in range(1, len(pts) - 1):  # leaflets
-            px, py = pts[i]
-            s = (1 - i / len(pts)) * 3.2 + 1
-            leaf = ellipse(c, px, py + 1, s, s * 0.55)
-            c.fill(leaf, GRASS[tone + 1])
-            c.fill(leaf & (c.grid()[1] < py + 0.6) & (c.grid()[0] < px), GRASS[tone + 2])
+    angles = np.linspace(-0.95, 0.95, fronds) + rng.normal(0, 0.06, fronds)
+    for k in sorted(range(fronds), key=lambda k: abs(angles[k])):  # back fronds first
+        a = float(angles[k])
+        ln = size_px * (0.72 - 0.12 * abs(a)) * rng.uniform(0.9, 1.08)
+        d = np.array([math.sin(a), -math.cos(a)])
+        side = 1.0 if a >= 0 else -1.0
+        m = np.zeros((c.h, c.w), bool)
+        spine = []
+        steps = 16
+        for i in range(steps + 1):
+            t = i / steps
+            p = np.array(base) + d * ln * t
+            p[0] += side * ln * 0.3 * t * t  # arch outward
+            p[1] += ln * (0.5 * abs(a) + 0.12) * t ** 2.4  # the tip droops (side fronds more)
+            spine.append(p)
+            w = 3.0 * (1 - t) ** 0.8 + 0.6
+            serr = 0.45 + 0.55 * abs(math.sin(t * math.pi * 5.0))  # leaflet notches
+            if i > 0:
+                m |= ellipse(c, p[0], p[1], w * serr + 0.3, w * serr * 0.8 + 0.3)
+        back = abs(a) < 0.45
+        body = GRASS[1] if back else GRASS[2]
+        c.fill(m, body)
+        lit = m & ~np.roll(np.roll(m, 1, 0), 1, 1)  # upper-left rim catches the sun
+        c.fill(lit, GRASS[2] if back else GRASS[3])
+        c.fill(line_mask(c, [tuple(p) for p in spine[1:-3]], 1), GRASS[3] if back else GRASS[4])
+        c.fill(m & ~np.roll(np.roll(m, -1, 0), -1, 1), GRASS[0])  # shadowed lower-right edge
     c.outline(mix(INK, GRASS[0], 0.4))
     sprite, (ox, oy) = c.crop_to_content()
     return sprite, (base[0] - ox, base[1] - oy), None, None
@@ -637,11 +650,12 @@ def tall_flowers(seed=0, color="lilac"):
     return sprite, (W / 2 - ox, base_y - oy), None, None
 
 
-def flower_decal(seed=0, colors=("white",), size_m=2.5):
+def flower_decal(seed=0, colors=("white",), size_m=2.5, aspect=1.0):
     """Flat patch of flowers lying on the grass: clumps of 6-15 rosettes over dark leaves,
-    dense at the center, sparse at the border."""
+    dense at the center, sparse at the border. aspect > 1 makes a long drift of flowers."""
     rng = np.random.default_rng(seed)
-    W = H = int(_m(size_m))
+    W = int(_m(size_m))
+    H = max(12, int(W / aspect))
     c = Canvas(W, H)
     xs, ys = c.grid()
     rr = np.hypot((xs - W / 2) / (W * 0.48), (ys - H / 2) / (H * 0.48))
@@ -781,3 +795,34 @@ def mushrooms(seed=0):
     c.outline(INK)
     sprite, (ox, oy) = c.crop_to_content()
     return sprite, (W / 2 - ox, base_y - oy), None, None
+
+
+BUTTERFLY = {  # edge, wing, highlight
+    "white": ["#8f8aa0", "#f4f1e6", "#ffffff"],
+    "yellow": ["#a87a1e", "#f2d04a", "#fff3b0"],
+    "blue": ["#2f4f98", "#7aa7e0", "#cfe2ff"],
+    "orange": ["#8a3c1c", "#e8873a", "#ffd09a"],
+}
+
+
+def butterfly(color="white", frame=0):
+    """Tiny flying butterfly (7x5 px open, 3x5 px closed), dark body, outlined wings."""
+    e, w, hl = BUTTERFLY[color]
+    c = Canvas(9, 7)
+    if frame == 0:  # wings open: two lobes each side, upper bigger
+        for (x, y) in ((1, 1), (2, 1), (1, 2), (2, 2), (3, 2), (6, 1), (5, 1), (6, 2), (5, 2), (4, 2) if False else (5, 2),
+                       (2, 3), (3, 3), (5, 3), (6, 3), (2, 4), (6, 4)):
+            c.px[y, x] = [*rgb(w), 1]
+        for (x, y) in ((1, 1), (6, 1), (2, 4), (6, 4)):
+            c.px[y, x] = [*rgb(e), 1]
+        c.px[1, 2] = [*rgb(hl), 1]
+        c.px[1, 5] = [*rgb(hl), 1]
+    else:  # wings folded up over the body
+        for (x, y) in ((3, 0), (4, 0), (3, 1), (4, 1), (3, 2), (4, 2), (5, 1)):
+            c.px[y, x] = [*rgb(w), 1]
+        c.px[0, 3] = [*rgb(e), 1]
+        c.px[0, 4] = [*rgb(hl), 1]
+    for y in (2, 3, 4):  # body
+        c.px[y, 4] = [*rgb(INK), 1]
+    sprite, (ox, oy) = c.crop_to_content(0)
+    return sprite, (4 - ox, 5 - oy), None, None

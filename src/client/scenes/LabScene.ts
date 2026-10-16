@@ -3,6 +3,7 @@ import { defaultAppearance, type Appearance, type Gender, type Race } from '@sha
 import { loadTexture } from '../core/assets';
 import { CharacterView, type AnimName } from '../character/CharacterView';
 import { equip } from '../character/equipment';
+import { WolfView } from '../game/WolfView';
 import { IsoCamera } from '../render/IsoCamera';
 import { Lighting } from '../render/Lighting';
 import { PixelPipeline } from '../render/PixelPipeline';
@@ -13,6 +14,7 @@ import { createGround } from '../world/Ground';
  *   race=human|harpin gender=m|f hair=<style> anim=<clip> t=<sec> zoom=<n> views=<1..4>
  *   skin/haircolor/plume/eyes=<hex without #>  rot=<deg>  play (animate instead of a still)
  *   armor (wear the armor)  nosword
+ *   lineup: the four bodies (valid in-game colors) and a wolf side by side, at game scale
  */
 export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
   const q = new URLSearchParams(location.search);
@@ -46,7 +48,35 @@ export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
   const time = Number(q.get('t') ?? 0);
   const playing = q.has('play');
   const chars: CharacterView[] = [];
-  for (let i = 0; i < views; i++) {
+  const wolves: WolfView[] = [];
+  if (q.has('lineup')) {
+    const looks: Appearance[] = [
+      { ...defaultAppearance('human', 'm'), skin: '#c68a5e', hairStyle: 'curto', hairColor: '#3b2619', eyeColor: '#3f6fa8' },
+      { ...defaultAppearance('human', 'f'), skin: '#e8b994', hairStyle: 'longo', hairColor: '#a8432a', eyeColor: '#3f8a5c' },
+      { ...defaultAppearance('harpin', 'm'), skin: '#d9a57c', hairStyle: 'espetado', hairColor: '#ecebe6', plumeColor: '#2b2830', eyeColor: '#3f8a5c' },
+      { ...defaultAppearance('harpin', 'f'), skin: '#f3d2b8', hairStyle: 'plumado', hairColor: '#3f72c4', plumeColor: '#3f72c4', eyeColor: '#8a7a3a' },
+    ];
+    for (const [i, look] of looks.entries()) {
+      const c = await CharacterView.create(look, { xray: 'player' });
+      if (!q.has('nosword')) await equip(c, 'weapon', 'sword_iron');
+      if (q.has('armor')) await equip(c, 'armor', 'armor_guard');
+      c.root.position.copy(iso.right).multiplyScalar((i - 2) * 1.6);
+      c.root.rotation.y = rot0;
+      scene.add(c.root);
+      if (playing) c.play(anim);
+      else c.pose(anim, time);
+      chars.push(c);
+    }
+    const w = await WolfView.create();
+    w.root.position.copy(iso.right).multiplyScalar(2 * 1.6 + 0.6);
+    w.root.rotation.y = rot0 - Math.PI / 4;
+    scene.add(w.root);
+    const wolfAnim = ({ Idle: 'Idle', Walk: 'Walk', Run: 'Run', Attack1: 'Attack', Attack2: 'Attack', Hit: 'Hit', Death: 'Death' } as const)[anim] ?? 'Idle';
+    w.setAnim(wolfAnim, 0, 0);
+    w.update(playing ? 0 : time);
+    wolves.push(w);
+  }
+  for (let i = 0; i < (q.has('lineup') ? 0 : views); i++) {
     const c = await CharacterView.create(app, { xray: 'player' });
     if (!q.has('nosword')) await equip(c, 'weapon', 'sword_iron');
     if (q.has('armor')) await equip(c, 'armor', 'armor_guard');
@@ -65,7 +95,7 @@ export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
   const clock = new THREE.Clock();
   const frame = () => {
     const dt = Math.min(clock.getDelta(), 0.05);
-    if (playing) for (const c of chars) c.update(dt);
+    if (playing) for (const c of [...chars, ...wolves]) c.update(dt);
     iso.target.set(0, 0.85, 0);
     lighting.follow(iso.target);
     pipeline.render(scene, iso);

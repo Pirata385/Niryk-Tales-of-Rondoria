@@ -71,6 +71,7 @@ export class PixelPipeline {
         tXrayDepth: { value: this.xray.depthTexture },
         depthRange: { value: 1 },
         ink: { value: INK.clone() }, // THREE.Color is already linear (color management on)
+        shadowFloor: { value: new THREE.Color('#2a2238') }, // darkest a shaded surface may get
         resolution: { value: new THREE.Vector2(1, 1) },
         vignette: { value: 0.22 },
       },
@@ -220,6 +221,7 @@ uniform sampler2D tXray;
 uniform sampler2D tXrayDepth;
 uniform float depthRange;
 uniform vec3 ink;
+uniform vec3 shadowFloor;
 uniform vec2 resolution;
 uniform float vignette;
 varying vec2 vUv;
@@ -238,6 +240,7 @@ void main() {
   vec3 color = texelFetch(tBeauty, p, 0).rgb;
   float dB = texelFetch(tBeautyDepth, p, 0).r;
   float dO = objDepth(p);
+  float inked = 0.0;
 
   // --- ink outlines on visible outlined objects (line drawn on the nearer pixel) ---
   if (dO < 1.0 && abs(lin(dO) - lin(dB)) < 0.08) {
@@ -255,7 +258,8 @@ void main() {
         crease = max(crease, smoothstep(0.78, 0.6, nd));
       }
     }
-    color = mix(color, ink, max(sil, crease * 0.5));
+    inked = max(sil, crease * 0.5);
+    color = mix(color, ink, inked);
   }
 
   // --- x-ray silhouettes (player / hostiles) behind scenery ---
@@ -272,8 +276,8 @@ void main() {
   c += vec3(-0.01, 0.0, 0.025) * (1.0 - l);
   vec2 uv = gl_FragCoord.xy / resolution - 0.5;
   c *= 1.0 - vignette * smoothstep(0.35, 0.85, length(uv * vec2(1.0, 0.85)));
-  // never crush to pure black: the ink color is the floor
-  c = max(c, toSRGB(ink));
+  // never crush to black: shaded surfaces stop at a dark violet, only ink lines reach the ink color
+  c = max(c, inked > 0.45 ? toSRGB(ink) : toSRGB(shadowFloor));
   gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
 }`;
 

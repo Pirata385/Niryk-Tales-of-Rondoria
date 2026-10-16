@@ -4,6 +4,7 @@
 //   node tools/shoot.mjs "?scene=test" name   -> one URL, all default viewports
 //   SHOTS=desktop node tools/shoot.mjs ...    -> restrict viewports
 //   CHAR=harpin_f node tools/shoot.mjs "" game -> start in the game with a saved character
+//   CHAR=human_m AT=30,12 node tools/shoot.mjs "" meadow -> ...teleported to (x, z) first
 //
 // Images go to .shots/<name>_<viewport>.png; console errors are printed and fail the run.
 import { chromium } from '@playwright/test';
@@ -63,7 +64,9 @@ async function main() {
   let failed = false;
   try {
     for (const vp of which) {
-      const r = await shoot(browser, base, query, name, vp, { character: CHARACTERS[process.env.CHAR] });
+      const at = process.env.AT?.split(',').map(Number);
+      const before = at ? (page) => page.evaluate(([x, z]) => window.__niryk.teleport(x, z), at) : undefined;
+      const r = await shoot(browser, base, query, name, vp, { character: CHARACTERS[process.env.CHAR], before, wait: at ? 1500 : 600 });
       console.log(`${r.file}  draws=${r.info?.calls ?? '?'} tris=${r.info?.triangles ?? '?'}`);
       if (r.errors.length) {
         failed = true;

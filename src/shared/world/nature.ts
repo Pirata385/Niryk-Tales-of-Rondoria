@@ -48,6 +48,8 @@ const ROCKS = ['rock_s1', 'rock_s2', 'rock_m1', 'rock_m2', 'rock_buried_1'];
 const GRASS = ['grass_1', 'grass_2', 'grass_3', 'grass_4'];
 const GRASS_FLOWERS = ['grass_flower_y', 'grass_flower_w', 'grass_flower_l'];
 const FLOWER_DECALS = ['decal_flowers_1', 'decal_flowers_2', 'decal_flowers_3', 'decal_flowers_4', 'decal_flowers_5', 'decal_flowers_6'];
+const FLOWER_CLUMPS = ['decal_flowers_7', 'decal_flowers_8', 'decal_flowers_9', 'decal_flowers_10'];
+const FLOWER_DRIFTS = ['decal_flowers_11', 'decal_flowers_12', 'decal_flowers_13'];
 
 /**
  * Deterministic placement of the 2D nature of the Campos de Rondoria biome: woods driven by noise
@@ -196,9 +198,17 @@ export function placeNature(p: NatureParams): NatureResult {
     push(flower ? rng.pick(GRASS_FLOWERS) : rng.pick(GRASS), x, z, rng.range(0.85, 1.15));
   }
 
-  // 6. flower patches (flat decals) in the meadows, clover and pebbles here and there
-  scatterDiscs(rng, decals, bounds, Math.round(area * 0.05), () => 1.4, (x, z) => meadowAt(x, z) > 0.46 && forestAt(x, z) < 0.52 && !p.blocked(x, z, 1)).forEach(
+  // 6. flowers (flat decals) in the meadows: a few big patches, long drifts and many small
+  //    single-color clumps; clover and pebbles here and there
+  const meadowOk = (x: number, z: number) => meadowAt(x, z) > 0.46 && forestAt(x, z) < 0.52;
+  scatterDiscs(rng, decals, bounds, Math.round(area * 0.025), () => 1.4, (x, z) => meadowOk(x, z) && !p.blocked(x, z, 1)).forEach(
     (d) => push(rng.pick(FLOWER_DECALS), d.x, d.z, rng.range(0.85, 1.2)),
+  );
+  scatterDiscs(rng, decals, bounds, Math.round(area * 0.01), () => 1.5, (x, z) => meadowOk(x, z) && !p.blocked(x, z, 1.2)).forEach(
+    (d) => push(rng.pick(FLOWER_DRIFTS), d.x, d.z, rng.range(0.9, 1.15)),
+  );
+  scatterDiscs(rng, decals, bounds, Math.round(area * 0.06), () => 0.6, (x, z) => meadowAt(x, z) > 0.4 && forestAt(x, z) < 0.6 && !p.blocked(x, z, 0.5)).forEach(
+    (d) => push(rng.pick(FLOWER_CLUMPS), d.x, d.z, rng.range(0.8, 1.2)),
   );
   scatterDiscs(rng, decals, bounds, Math.round(area * 0.003), () => 1, (x, z) => !p.blocked(x, z, 0.6)).forEach((d) =>
     push(rng.chance(0.6) ? 'decal_clover_1' : 'decal_pebbles_1', d.x, d.z),

@@ -8,6 +8,7 @@ import { shadeSpritesUnder } from '../render/Lighting';
 import { LAYER_OUTLINE } from '../render/PixelPipeline';
 import { staticBatch } from '../render/staticBatch';
 import { toonFromGltf, toonMaterial } from '../render/toon';
+import { Butterflies } from './Butterflies';
 import { createGround } from './Ground';
 
 /**
@@ -17,6 +18,7 @@ import { createGround } from './Ground';
 export class WorldView {
   readonly group = new THREE.Group();
   billboards!: Billboards;
+  butterflies!: Butterflies;
 
   private constructor(readonly world: WorldData) {}
 
@@ -44,6 +46,9 @@ export class WorldView {
     for (const m of staticBatch(structures)) this.group.add(m);
     this.billboards = new Billboards(atlas, texture, placements);
     this.group.add(this.billboards.group);
+    // butterflies over grass and roads, never over the paved plaza
+    this.butterflies = new Butterflies(atlas, texture, w.height, (x, z) => w.splat(x, z)[2] < 0.3 && Math.abs(x) < w.half - 4 && Math.abs(z) < w.half - 4);
+    this.group.add(this.butterflies.mesh);
   }
 
   private async buildStructures(): Promise<THREE.Object3D[]> {
@@ -69,8 +74,10 @@ export class WorldView {
     return out;
   }
 
-  update(dt: number): void {
+  /** Animates sway and the butterflies around the player at (x, z). */
+  update(dt: number, x: number, z: number): void {
     this.billboards.update(dt);
+    this.butterflies.update(dt, x, z);
   }
 }
 

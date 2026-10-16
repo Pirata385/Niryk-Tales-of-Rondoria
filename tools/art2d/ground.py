@@ -45,12 +45,15 @@ def _blades(arr, rng, count, pal_idx_fn, pal, lit, max_len=4):
             arr[yy, xx] = col
 
 
-def grass(seed=0, pal=GRASS_A, flowers=0.0):
-    """Mostly one mid tone with soft patches, covered by short brush-stroke blades (ref. 05)."""
+def grass(seed=0, pal=GRASS_A, flowers=0.0, contrast=1.0):
+    """Mostly one mid tone with soft patches, covered by short brush-stroke blades (ref. 05).
+    contrast < 1 flattens the noise so no single dark/light blotch stands out (it would reveal
+    the 8 m tiling as a repeating motif)."""
     rng = np.random.default_rng(seed)
     big = fbm(SIZE, SIZE, 64, 3, seed, tile=True)
     mid = fbm(SIZE, SIZE, 16, 3, seed + 5, tile=True)
     v = big * 0.6 + mid * 0.4
+    v = 0.5 + (v - v.mean()) * contrast
     arr = bands(v, [0.27, 0.68], pal[1:4]).copy()
 
     def idx(val, r):
