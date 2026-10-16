@@ -16,7 +16,9 @@ passam pelo agente **crítico** (`.claude/agents/critico.md`) antes de chegar ao
 1. Gere o material de revisão:
    - assets 3D: folhas do Pyram3D em `projects/niryk/review/`;
    - sprites: `tools/art2d/out/review_*.png`;
-   - jogo: `npm run shoot`, que grava em `.shots/`.
+   - jogo: `npm run shoot` (uma URL; `CHAR=harpin_f` entra no jogo com personagem salvo,
+     `AT=x,z` teleporta) e `node tools/review-shots.mjs` (4 corpos + lobo lado a lado, 8 direções,
+     armadura, espada, criador), que gravam em `.shots/`.
 2. Lance o crítico (subagente) com os caminhos. Em vez de abrir outro, continue a mesma
    instância nas rodadas seguintes.
 3. `REFAZER` → corrija e reenvie, no máximo 3 rodadas por item. Se ainda não aprovar, siga em
@@ -27,16 +29,24 @@ passam pelo agente **crítico** (`.claude/agents/critico.md`) antes de chegar ao
 - TypeScript, Vite e three.js (versões fixas em `package.json`). Sem framework de UI: DOM e CSS.
 - `npm run dev`: servidor de desenvolvimento.
 - `npm run build`: typecheck e build para `dist/` (GitHub Pages).
-- `npm run build:single`: um único `dist-single/index.html` com tudo embutido (para compartilhar
-  como página).
+- `npm run build:single`: um único `dist-single/index.html` com tudo embutido, mais
+  `dist-single/artifact.html` (o mesmo sem o esqueleto HTML, para publicar como Artifact). Usa
+  modelos sem compressão meshopt (`tools/raw-models.mjs`) e não depende de WebAssembly nem de
+  `fetch`, para rodar sob uma política de conteúdo estrita.
 - `npm test`: testes unitários (vitest) de `src/shared` e `src/server`.
 - `npm run typecheck`
 - `npm run e2e`: Playwright, que cria personagem, anda, ataca e equipa, em desktop e celular.
 - `npm run shoot`: screenshots determinísticas para o crítico (`.shots/`).
 - `npm run models`: importa os GLBs exportados pelo Pyram3D
-  (`../Pyram3D/projects/niryk/exports`), otimiza e grava em `public/assets/models/`.
+  (`../Pyram3D/projects/niryk/exports`), simplifica por orçamento de malha, quantiza, comprime
+  (meshopt) e grava em `assets/models/`. Texturas recebem nome pelo hash do conteúdo (a vila é
+  fundida em lotes estáticos por textura).
 - `npm run art`: regenera sprites, chão e UI 2D (`tools/art2d`, Python com numpy e Pillow) em
-  `public/assets/sprites/` e `public/assets/ui/`.
+  `assets/sprites/`.
+- Rotas: `?scene=creator`, `?scene=lab` (`lineup`, `dirs`, `race`, `gender`, `anim`, `t`,
+  `zoom`, `armor`, `tx/ty/tz`…), `?scene=test`.
+- No Pyram3D: `python projects/niryk/build_characters.py [nome] [--fast] [--armor-only]
+  [--sword]`, `wolf.py`, `buildings.py`.
 
 Playwright usa o Chromium pré-instalado (`/opt/pw-browsers`) com WebGL via SwiftShader:
 `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`.

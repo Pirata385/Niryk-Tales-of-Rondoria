@@ -254,10 +254,12 @@ export async function runGame(ctx: AppContext, appearance: Appearance, onNewChar
           v.animKey = key;
         }
         syncEquipment(v, isMe ? client.equipment : e.equipment, isMe);
+        v.char.setXray(e.anim !== 'Death');
         v.char.update(dt);
         v.char.flash(v.flash > 0 ? 1 : 0);
       } else if (v.wolf) {
         v.wolf.setAnim(e.anim, e.animStart, elapsed);
+        v.wolf.setXray(e.anim !== 'Death');
         v.wolf.update(dt);
         v.wolf.flash(v.flash > 0 ? 1 : 0);
         effects.telegraph(id, !!e.telegraph, pos.x, world.height(pos.x, pos.z), pos.z, Math.min(1, elapsed / WOLF.windup));

@@ -54,6 +54,19 @@ export class WolfView {
     this.currentKey = key;
   }
 
+  private xrayOn = true;
+
+  /** Hostile silhouette behind scenery; off once the wolf lies dead. */
+  setXray(on: boolean): void {
+    if (on === this.xrayOn) return;
+    this.xrayOn = on;
+    this.root.traverse((o) => {
+      if (!(o as THREE.Mesh).isMesh) return;
+      if (on) o.layers.enable(LAYER_XRAY_HOSTILE);
+      else o.layers.disable(LAYER_XRAY_HOSTILE);
+    });
+  }
+
   /** Brief white flash when hit. */
   flash(amount: number): void {
     for (const m of this.materials) m.emissive.setScalar(amount * 0.8);

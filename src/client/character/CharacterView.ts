@@ -46,8 +46,12 @@ export class CharacterView {
   private currentName: AnimName | null = null;
   appearance: Appearance;
 
+  private readonly xrayKind: CharacterOptions['xray'];
+  private xrayOn = true;
+
   private constructor(model: THREE.Object3D, clips: THREE.AnimationClip[], appearance: Appearance, opts: CharacterOptions) {
     this.model = model;
+    this.xrayKind = opts.xray;
     this.appearance = appearance;
     this.root.add(model);
     model.traverse((o) => {
@@ -137,6 +141,21 @@ export class CharacterView {
   }
 
   private flashAmount = 0;
+
+  /**
+   * Turns the behind-scenery silhouette on/off (off for a body lying dead: wings and tail that
+   * dip under the ground would otherwise show as ghosts).
+   */
+  setXray(on: boolean): void {
+    if (on === this.xrayOn || !this.xrayKind) return;
+    this.xrayOn = on;
+    const layer = this.xrayKind === 'player' ? LAYER_XRAY : LAYER_XRAY_HOSTILE;
+    this.root.traverse((o) => {
+      if (!(o as THREE.Mesh).isMesh) return;
+      if (on) o.layers.enable(layer);
+      else o.layers.disable(layer);
+    });
+  }
 
   /** Pose at a fixed time (screenshots / creator preview). */
   pose(name: AnimName, time: number): void {

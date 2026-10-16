@@ -67,6 +67,7 @@ export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
       scene.add(c.root);
       if (playing) c.play(anim);
       else c.pose(anim, time);
+      c.setXray(anim !== 'Death');
       chars.push(c);
     }
     const w = await WolfView.create();
@@ -75,6 +76,7 @@ export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
     scene.add(w.root);
     const wolfAnim = ({ Idle: 'Idle', Walk: 'Walk', Run: 'Run', Attack1: 'Attack', Attack2: 'Attack', Hit: 'Hit', Death: 'Death' } as const)[anim] ?? 'Idle';
     w.setAnim(wolfAnim, 0, 0);
+    w.setXray(wolfAnim !== 'Death');
     w.update(playing ? 0 : time);
     wolves.push(w);
   }
@@ -88,6 +90,7 @@ export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
       scene.add(c.root);
       if (playing) c.play(anim);
       else c.pose(anim, time);
+      c.setXray(anim !== 'Death');
       chars.push(c);
     }
   }
