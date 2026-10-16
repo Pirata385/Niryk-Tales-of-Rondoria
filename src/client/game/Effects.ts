@@ -33,10 +33,10 @@ export class Effects {
     private readonly pipeline: PixelPipeline,
     private readonly iso: IsoCamera,
   ) {
-    // a 130° crescent lying on the ground, opening toward +Z
+    // a 160° crescent at waist height, opening toward +Z (the sword trail of a cut)
     const shape = new THREE.Shape();
-    const a0 = -1.13;
-    const a1 = 1.13;
+    const a0 = -1.4;
+    const a1 = 1.4;
     const steps = 18;
     for (let i = 0; i <= steps; i++) {
       const a = a0 + ((a1 - a0) * i) / steps;
@@ -61,7 +61,7 @@ export class Effects {
   }
 
   slash(x: number, y: number, z: number, yaw: number, mirrored: boolean): void {
-    const mat = new THREE.MeshBasicMaterial({ color: '#fff4d6', transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide });
+    const mat = new THREE.MeshBasicMaterial({ color: '#fff4d6', transparent: true, opacity: 1, depthWrite: false, side: THREE.DoubleSide });
     const mesh = new THREE.Mesh(this.slashGeo, mat);
     mesh.position.set(x, y + 0.9, z);
     mesh.rotation.y = yaw;
@@ -71,9 +71,9 @@ export class Effects {
     this.timed.push({
       obj: mesh,
       age: 0,
-      life: 0.16,
+      life: 0.12, // a quick flash that fades out
       update: (k) => {
-        mat.opacity = 0.9 * (1 - k);
+        mat.opacity = 1 - k;
         mesh.scale.setScalar(0.9 + 0.2 * k);
         if (mirrored) mesh.scale.x *= -1;
       },

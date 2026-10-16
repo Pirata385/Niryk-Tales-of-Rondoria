@@ -52,7 +52,7 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
   /** Until the player picks a tunic color, it steps away from green plumes/hair automatically. */
   let clothChosen = saved !== null;
   const autoTunic = (a: Appearance): Appearance =>
-    clothChosen ? a : { ...a, clothColor: tunicFor(a.race === 'harpin' ? [a.hairColor, a.plumeColor] : [a.hairColor], CLOTH_COLORS[0]) };
+    clothChosen ? a : { ...a, clothColor: tunicFor(a.race === 'harpin' ? [a.hairColor, a.plumeColor] : [a.hairColor], defaultAppearance(a.race, a.gender).clothColor) };
 
   // ---------------------------------------------------------------- 3D preview
   const scene = new THREE.Scene();

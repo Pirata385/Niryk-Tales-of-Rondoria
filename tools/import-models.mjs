@@ -32,7 +32,9 @@ const DEFAULT_BUDGET = 2500;
 /** Max simplification error (fraction of the mesh size): tighter where garments sit 1-2 cm over
  *  the skin, so simplifying them can't sink the cloth under the body. */
 const ERRORS = [
-  [/^(Body|Outfit|Armor)/, 0.004],
+  [/^Outfit/, 0.004],
+  [/^Body/, 0.008], // covered skin is deleted at build time; the rest may move a little more
+  [/^Armor/, 0.02], // rigid plates ~4 cm over the cloth: room to simplify down to the 4k budget
 ];
 const DEFAULT_ERROR = 0.012;
 const NEVER_SIMPLIFY = /Feather/; // thin double-sided cards break when collapsed
@@ -84,7 +86,9 @@ async function main() {
       if (ratio < 1) {
         // lockBorder keeps the seams between primitives (material boundaries) closed
         const error = ERRORS.find(([re]) => re.test(mesh.getName()))?.[1] ?? DEFAULT_ERROR;
-        for (const prim of flexible) simplifyPrimitive(prim, { simplifier: MeshoptSimplifier, ratio, error, lockBorder: true });
+        // armor parts are separate plates: their material seams don't need locking
+        const lockBorder = !/^Armor/.test(mesh.getName());
+        for (const prim of flexible) simplifyPrimitive(prim, { simplifier: MeshoptSimplifier, ratio, error, lockBorder });
       }
       after += prims.reduce((a, p) => a + triCount(p), 0);
       perMesh.push(`${mesh.getName()}=${mesh.listPrimitives().reduce((a, p) => a + triCount(p), 0)}`);

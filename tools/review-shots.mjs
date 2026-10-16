@@ -19,6 +19,13 @@ const SHOTS = [
   ['dirs_human_m', '?scene=lab&dirs&race=human&gender=m&zoom=1&anim=Idle&t=0.4'],
   ['dirs_human_f', '?scene=lab&dirs&race=human&gender=f&zoom=1&anim=Idle&t=0.4&hair=curto'],
   ['closeup_faces', '?scene=lab&lineup&zoom=4&anim=Idle&t=0.4&ty=1.45'],
+  ['dirs_harpin_black', '?scene=lab&dirs&race=harpin&gender=m&zoom=1&anim=Idle&t=0.4&haircolor=2b2830&plume=2b2830&cloth=b08a3a'],
+  ['dirs_harpin_white', '?scene=lab&dirs&race=harpin&gender=f&zoom=1&anim=Idle&t=0.4&hair=crista&haircolor=ecebe6&plume=ecebe6&cloth=7a2f3a'],
+  ['dirs_harpin_blue', '?scene=lab&dirs&race=harpin&gender=f&zoom=1&anim=Idle&t=0.4&hair=plumado&haircolor=3f72c4&plume=3f72c4&cloth=7a5236'],
+  ['armor_game_scale', '?scene=lab&lineup&zoom=1&anim=Idle&t=0.4&armor'],
+  ['sword_closeup', '?scene=lab&race=human&gender=m&zoom=5&anim=Idle&t=0.4&ty=1.0&tx=-0.2&rot=30'],
+  ['wolf_attack', '?scene=lab&lineup&zoom=2&anim=Attack1&t=0.38&tx=2.4&tz=-2.4'],
+  ['wolf_death', '?scene=lab&lineup&zoom=2&anim=Death&t=1.1&tx=2.4&tz=-2.4'],
 ];
 // creator with the Harpin race selected (desktop and phone)
 const CREATOR = { name: 'creator_harpin', query: '?scene=creator', before: (page) => page.getByRole('button', { name: 'Harpin', exact: true }).click() };

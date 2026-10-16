@@ -111,7 +111,7 @@ export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
   const frame = () => {
     const dt = Math.min(clock.getDelta(), 0.05);
     if (playing) for (const c of [...chars, ...wolves]) c.update(dt);
-    iso.target.set(Number(q.get('tx') ?? 0), Number(q.get('ty') ?? 0.85), 0);
+    iso.target.set(Number(q.get('tx') ?? 0), Number(q.get('ty') ?? 0.85), Number(q.get('tz') ?? 0));
     lighting.follow(iso.target);
     pipeline.render(scene, iso);
     (window as unknown as { __niryk: unknown }).__niryk = { ready: true, info: pipeline.renderer.info.render };

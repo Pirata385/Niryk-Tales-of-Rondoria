@@ -8,6 +8,24 @@ import { toonFromGltf } from '../render/toon';
 export type AnimName = 'Idle' | 'Walk' | 'Run' | 'Attack1' | 'Attack2' | 'Hit' | 'Death';
 const LOOPING = new Set<AnimName>(['Idle', 'Walk', 'Run']);
 
+const DARK_FLOOR = new THREE.Color('#4a4560');
+const MIN_LUMA = luma(new THREE.Color('#3c3750'));
+
+function luma(c: THREE.Color): number {
+  return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b; // linear
+}
+
+/**
+ * Black plumes/hair would sink into the ink outline and lose the toon bands: very dark slot colors
+ * are lifted toward a cool dark violet until they reach a minimum luminance (L* ~ 18 base).
+ */
+function liftDark(c: THREE.Color): THREE.Color {
+  const y = luma(c);
+  if (y >= MIN_LUMA) return c;
+  const t = (MIN_LUMA - y) / Math.max(1e-6, luma(DARK_FLOOR) - y);
+  return c.lerp(DARK_FLOOR, Math.min(1, t));
+}
+
 export interface CharacterOptions {
   /** Silhouette when hidden behind scenery: 'player' (lilac), 'hostile' (red) or none. */
   xray?: 'player' | 'hostile';
@@ -74,7 +92,8 @@ export class CharacterView {
       Cloth_A: a.clothColor,
     };
     for (const [slot, color] of Object.entries(tint)) {
-      for (const m of this.slots.get(slot) ?? []) m.color.set(color);
+      const c = slot === 'Eye' || slot === 'Skin' ? new THREE.Color(color) : liftDark(new THREE.Color(color));
+      for (const m of this.slots.get(slot) ?? []) m.color.copy(c);
     }
     // toggle only the top hair node of each style: a multi-material hair loads as a group whose
     // primitive meshes are also named Hair_<style>_<n> and must stay visible inside it

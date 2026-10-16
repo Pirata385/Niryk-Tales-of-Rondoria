@@ -32,7 +32,7 @@ export const HARPIN_COLORS: Record<string, string> = {
   amarelo: '#e8c040',
 };
 
-/** Tunic colors: green, brown, dark blue, wine, gray, ochre. */
+/** Tunic colors: green, brown, dark blue, wine, gray, ochre (defaults avoid the green). */
 export const CLOTH_COLORS = ['#5c8a44', '#7a5236', '#34507a', '#7a2f3a', '#6b6870', '#b08a3a'];
 
 export const EYE_COLORS = ['#3f6fa8', '#3f8a5c', '#6a4a2a', '#2b2b2b', '#8a7a3a', '#7a4ab0'];
@@ -59,8 +59,9 @@ export function bodyModel(a: Pick<Appearance, 'race' | 'gender'>): string {
 
 export function defaultAppearance(race: Race = 'human', gender: Gender = 'm'): Appearance {
   return race === 'human'
-    ? { name: '', race, gender, skin: SKIN_TONES[1], hairStyle: 'curto', hairColor: HUMAN_HAIR_COLORS[2], plumeColor: HARPIN_COLORS.branco, eyeColor: EYE_COLORS[1], clothColor: CLOTH_COLORS[0] }
-    : { name: '', race, gender, skin: SKIN_TONES[1], hairStyle: 'espetado', hairColor: HARPIN_COLORS.branco, plumeColor: HARPIN_COLORS.preto, eyeColor: EYE_COLORS[1], clothColor: CLOTH_COLORS[0] };
+    ? { name: '', race, gender, skin: SKIN_TONES[1], hairStyle: gender === 'f' ? 'longo' : 'curto', hairColor: HUMAN_HAIR_COLORS[2], plumeColor: HARPIN_COLORS.branco, eyeColor: EYE_COLORS[1], clothColor: gender === 'f' ? CLOTH_COLORS[3] : CLOTH_COLORS[1] }
+    : { name: '', race, gender, skin: SKIN_TONES[1], hairStyle: gender === 'f' ? 'plumado' : 'espetado', hairColor: HARPIN_COLORS.branco, plumeColor: HARPIN_COLORS.preto, eyeColor: EYE_COLORS[1], clothColor: CLOTH_COLORS[5] };
+// default tunics stay off green: a green tunic on the green fields loses the character's silhouette
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;
