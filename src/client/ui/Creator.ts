@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
-  EYE_COLORS, HAIR_STYLES, HAIR_STYLE_LABELS, HARPIN_COLORS, HUMAN_HAIR_COLORS, SKIN_TONES, defaultAppearance, randomAppearance,
-  validateAppearance, type Appearance, type Gender, type Race,
+  CLOTH_COLORS, EYE_COLORS, HAIR_STYLES, HAIR_STYLE_LABELS, HARPIN_COLORS, HUMAN_HAIR_COLORS, SKIN_TONES, defaultAppearance,
+  migrateAppearance, randomAppearance, tunicFor, validateAppearance, type Appearance, type Gender, type Race,
 } from '@shared/appearance';
 import { CharacterView, type AnimName } from '../character/CharacterView';
 import { equip } from '../character/equipment';
@@ -18,7 +18,7 @@ export function loadSavedCharacter(): Appearance | null {
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (!raw) return null;
-    const a = JSON.parse(raw) as Appearance;
+    const a = migrateAppearance(JSON.parse(raw) as Partial<Appearance>);
     return validateAppearance(a).length === 0 ? a : null;
   } catch {
     return null;
@@ -45,9 +45,14 @@ function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = ''): 
  * name, with a live 3D preview through the game's pixel pipeline (drag to turn it).
  */
 export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => void): Promise<() => void> {
-  let app: Appearance = loadSavedCharacter() ?? { ...defaultAppearance('human', 'm') };
+  const saved = loadSavedCharacter();
+  let app: Appearance = saved ?? { ...defaultAppearance('human', 'm') };
   let plumeLinked = app.race !== 'harpin' || app.plumeColor === app.hairColor;
   let previewAnim: AnimName = 'Idle';
+  /** Until the player picks a tunic color, it steps away from green plumes/hair automatically. */
+  let clothChosen = saved !== null;
+  const autoTunic = (a: Appearance): Appearance =>
+    clothChosen ? a : { ...a, clothColor: tunicFor(a.race === 'harpin' ? [a.hairColor, a.plumeColor] : [a.hairColor], CLOTH_COLORS[0]) };
 
   // ---------------------------------------------------------------- 3D preview
   const scene = new THREE.Scene();
@@ -145,7 +150,7 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
       seg<Race>(S.creator.race, ['human', 'harpin'], app.race, (r) => S.creator.races[r], (r) => {
         if (r === app.race) return;
         const d = defaultAppearance(r, app.gender);
-        app = { ...d, name: app.name, gender: app.gender, skin: app.skin, eyeColor: app.eyeColor };
+        app = { ...d, name: app.name, gender: app.gender, skin: app.skin, eyeColor: app.eyeColor, clothColor: app.clothColor };
         plumeLinked = r === 'harpin' ? false : true;
         update();
       }),
@@ -195,9 +200,17 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
       );
     }
     options.append(swatches(S.creator.eyes, EYE_COLORS, app.eyeColor, (c) => ((app = { ...app, eyeColor: c }), update())));
+    options.append(
+      swatches(S.creator.cloth, CLOTH_COLORS, app.clothColor, (c) => {
+        clothChosen = true;
+        app = { ...app, clothColor: c };
+        update();
+      }),
+    );
   }
 
   function update(): void {
+    app = autoTunic(app);
     render();
     refresh();
   }
@@ -218,6 +231,7 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
   random.onclick = () => {
     const name = app.name;
     app = { ...randomAppearance(Math.random), name };
+    clothChosen = false;
     plumeLinked = app.plumeColor === app.hairColor;
     update();
   };

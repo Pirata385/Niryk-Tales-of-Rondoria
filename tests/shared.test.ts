@@ -100,3 +100,15 @@ describe('ponds', () => {
     expect(col.blocked(w.spawn.x, w.spawn.z, 0.3)).toBe(false);
   });
 });
+
+describe('tunic color', () => {
+  it('steps away from green plumes and migrates old saves', async () => {
+    const { tunicFor, migrateAppearance, validateAppearance, CLOTH_COLORS, HARPIN_COLORS } = await import('../src/shared/appearance');
+    expect(tunicFor([HARPIN_COLORS.verde], CLOTH_COLORS[0])).not.toBe(CLOTH_COLORS[0]);
+    expect(tunicFor([HARPIN_COLORS.branco], CLOTH_COLORS[0])).toBe(CLOTH_COLORS[0]);
+    const old = { name: 'Sylwe', race: 'harpin', gender: 'f', skin: '#f3d2b8', hairStyle: 'plumado', hairColor: HARPIN_COLORS.verde, plumeColor: HARPIN_COLORS.verde, eyeColor: '#8a7a3a' } as const;
+    const a = migrateAppearance(old);
+    expect(validateAppearance(a)).toEqual([]);
+    expect(a.clothColor).not.toBe(CLOTH_COLORS[0]);
+  });
+});

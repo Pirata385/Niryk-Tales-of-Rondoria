@@ -21,6 +21,7 @@ export const S = {
     plume: 'Cor das plumas',
     plumeSame: 'Igual ao cabelo',
     eyes: 'Olhos',
+    cloth: 'Cor da túnica',
     random: 'Aleatório',
     start: 'Entrar no mundo',
     preview: { idle: 'Parado', walk: 'Andar', attack: 'Atacar' },

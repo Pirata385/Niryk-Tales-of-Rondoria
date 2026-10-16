@@ -30,6 +30,7 @@ describe('appearance validation', () => {
     expect(validateAppearance({ ...h, hairColor: '#ff00ff' })).toContain('hairColor');
     expect(validateAppearance({ ...h, plumeColor: HARPIN_COLORS.azul })).toEqual([]);
     expect(validateAppearance({ ...h, hairStyle: 'curto' })).toContain('hairStyle');
+    expect(validateAppearance({ ...h, clothColor: '#00ff00' })).toContain('clothColor');
     expect(validateAppearance({ ...h, name: 'x' })).toContain('name');
   });
 });

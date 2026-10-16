@@ -29,6 +29,12 @@ const BUDGETS = [
   [/^Wolf/, 5000],
 ];
 const DEFAULT_BUDGET = 2500;
+/** Max simplification error (fraction of the mesh size): tighter where garments sit 1-2 cm over
+ *  the skin, so simplifying them can't sink the cloth under the body. */
+const ERRORS = [
+  [/^(Body|Outfit|Armor)/, 0.004],
+];
+const DEFAULT_ERROR = 0.012;
 const NEVER_SIMPLIFY = /Feather/; // thin double-sided cards break when collapsed
 
 function findGlbs(dir) {
@@ -77,7 +83,8 @@ async function main() {
       before += fixedTris + flexTris;
       if (ratio < 1) {
         // lockBorder keeps the seams between primitives (material boundaries) closed
-        for (const prim of flexible) simplifyPrimitive(prim, { simplifier: MeshoptSimplifier, ratio, error: 0.012, lockBorder: true });
+        const error = ERRORS.find(([re]) => re.test(mesh.getName()))?.[1] ?? DEFAULT_ERROR;
+        for (const prim of flexible) simplifyPrimitive(prim, { simplifier: MeshoptSimplifier, ratio, error, lockBorder: true });
       }
       after += prims.reduce((a, p) => a + triCount(p), 0);
       perMesh.push(`${mesh.getName()}=${mesh.listPrimitives().reduce((a, p) => a + triCount(p), 0)}`);

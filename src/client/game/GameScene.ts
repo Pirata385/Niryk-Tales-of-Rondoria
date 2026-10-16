@@ -222,6 +222,7 @@ export async function runGame(ctx: AppContext, appearance: Appearance, onNewChar
       aim: atk.pressed ? aimFromScreen(atk.at, self) : null,
     };
     client.update(dt, intent);
+    if (intent.mx || intent.mz) hud.hideHint();
 
     // entities
     for (const e of client.entities.values()) if (!views.has(e.id)) void createView(e);

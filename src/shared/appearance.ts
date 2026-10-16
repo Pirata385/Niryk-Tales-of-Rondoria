@@ -13,6 +13,8 @@ export interface Appearance {
   /** Harpins only: feathers of wings, tail, legs and head tufts. */
   plumeColor: string;
   eyeColor: string;
+  /** Tunic color (the starter outfit's Cloth_A slot). */
+  clothColor: string;
 }
 
 export const SKIN_TONES = ['#f3d2b8', '#e8b994', '#d9a57c', '#c68a5e', '#a96f47', '#8a5636', '#6a3f27', '#4a2b1c'];
@@ -29,6 +31,9 @@ export const HARPIN_COLORS: Record<string, string> = {
   vermelho: '#c43a32',
   amarelo: '#e8c040',
 };
+
+/** Tunic colors: green, brown, dark blue, wine, gray, ochre. */
+export const CLOTH_COLORS = ['#5c8a44', '#7a5236', '#34507a', '#7a2f3a', '#6b6870', '#b08a3a'];
 
 export const EYE_COLORS = ['#3f6fa8', '#3f8a5c', '#6a4a2a', '#2b2b2b', '#8a7a3a', '#7a4ab0'];
 
@@ -54,8 +59,8 @@ export function bodyModel(a: Pick<Appearance, 'race' | 'gender'>): string {
 
 export function defaultAppearance(race: Race = 'human', gender: Gender = 'm'): Appearance {
   return race === 'human'
-    ? { name: '', race, gender, skin: SKIN_TONES[1], hairStyle: 'curto', hairColor: HUMAN_HAIR_COLORS[2], plumeColor: HARPIN_COLORS.branco, eyeColor: EYE_COLORS[1] }
-    : { name: '', race, gender, skin: SKIN_TONES[1], hairStyle: 'espetado', hairColor: HARPIN_COLORS.branco, plumeColor: HARPIN_COLORS.preto, eyeColor: EYE_COLORS[1] };
+    ? { name: '', race, gender, skin: SKIN_TONES[1], hairStyle: 'curto', hairColor: HUMAN_HAIR_COLORS[2], plumeColor: HARPIN_COLORS.branco, eyeColor: EYE_COLORS[1], clothColor: CLOTH_COLORS[0] }
+    : { name: '', race, gender, skin: SKIN_TONES[1], hairStyle: 'espetado', hairColor: HARPIN_COLORS.branco, plumeColor: HARPIN_COLORS.preto, eyeColor: EYE_COLORS[1], clothColor: CLOTH_COLORS[0] };
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -70,6 +75,7 @@ export function validateAppearance(a: Appearance): string[] {
   if (!SKIN_TONES.includes(a.skin)) errors.push('skin');
   if (!HAIR_STYLES[a.race]?.includes(a.hairStyle)) errors.push('hairStyle');
   if (!EYE_COLORS.includes(a.eyeColor)) errors.push('eyeColor');
+  if (!CLOTH_COLORS.includes(a.clothColor)) errors.push('clothColor');
   const harpinColors = Object.values(HARPIN_COLORS);
   if (a.race === 'harpin') {
     if (!harpinColors.includes(a.hairColor)) errors.push('hairColor');
@@ -77,7 +83,7 @@ export function validateAppearance(a: Appearance): string[] {
   } else if (!HUMAN_HAIR_COLORS.includes(a.hairColor)) {
     errors.push('hairColor');
   }
-  for (const k of ['skin', 'hairColor', 'plumeColor', 'eyeColor'] as const) if (!HEX.test(a[k])) errors.push(k);
+  for (const k of ['skin', 'hairColor', 'plumeColor', 'eyeColor', 'clothColor'] as const) if (!HEX.test(a[k])) errors.push(k);
   return [...new Set(errors)];
 }
 
@@ -87,6 +93,7 @@ export function randomAppearance(rand: () => number, race?: Race): Appearance {
   const g: Gender = rand() < 0.5 ? 'm' : 'f';
   const harpin = Object.values(HARPIN_COLORS);
   const hair = r === 'harpin' ? pick(harpin) : pick(HUMAN_HAIR_COLORS);
+  const plume = r === 'harpin' ? (rand() < 0.6 ? hair : pick(harpin)) : HARPIN_COLORS.branco;
   return {
     name: '',
     race: r,
@@ -94,7 +101,44 @@ export function randomAppearance(rand: () => number, race?: Race): Appearance {
     skin: pick(SKIN_TONES),
     hairStyle: pick(HAIR_STYLES[r]),
     hairColor: hair,
-    plumeColor: r === 'harpin' ? (rand() < 0.6 ? hair : pick(harpin)) : HARPIN_COLORS.branco,
+    plumeColor: plume,
     eyeColor: pick(EYE_COLORS),
+    clothColor: tunicFor(r === 'harpin' ? [hair, plume] : [hair], pick(CLOTH_COLORS)),
   };
+}
+
+function hue(hex: string): { h: number; s: number } {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) / 255;
+  const g = ((n >> 8) & 255) / 255;
+  const b = (n & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  if (d === 0) return { h: 0, s: 0 };
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return { h: (h * 60 + 360) % 360, s: d / max };
+}
+
+/**
+ * Keeps the tunic from melting into the plumes/hair: if the wanted tunic color is within 60° of
+ * hue of a saturated hair/plume color, returns the first tunic color that is not.
+ */
+export function tunicFor(featherColors: string[], wanted: string): string {
+  const clash = (c: string) =>
+    featherColors.some((f) => {
+      const a = hue(f);
+      const b = hue(c);
+      if (a.s < 0.25 || b.s < 0.25) return false;
+      const dh = Math.abs(a.h - b.h);
+      return Math.min(dh, 360 - dh) < 60;
+    });
+  if (!clash(wanted)) return wanted;
+  return CLOTH_COLORS.find((c) => !clash(c)) ?? wanted;
+}
+
+/** Fills fields added after a character was saved (old saves keep working). */
+export function migrateAppearance(a: Partial<Appearance>): Appearance {
+  const d = defaultAppearance(a.race ?? 'human', a.gender ?? 'm');
+  return { ...d, ...a, clothColor: a.clothColor ?? tunicFor([a.hairColor ?? d.hairColor, a.plumeColor ?? d.plumeColor], d.clothColor) };
 }

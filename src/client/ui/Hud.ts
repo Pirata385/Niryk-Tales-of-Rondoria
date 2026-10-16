@@ -67,7 +67,12 @@ export class Hud {
     this.hint.textContent = touch ? S.hud.hintTouch : S.hud.hintDesktop;
     this.root.append(this.fx, top, buttons, this.joystick.base, attack, this.hint);
     host.append(this.root);
-    setTimeout(() => (this.hint.style.opacity = '0'), 9000);
+    setTimeout(() => this.hideHint(), 6000);
+  }
+
+  /** Fades the controls hint (after 6 s or as soon as the player moves). */
+  hideHint(): void {
+    this.hint.style.opacity = '0';
   }
 
   setHealth(name: string, hp: number, max: number): void {

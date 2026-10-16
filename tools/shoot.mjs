@@ -28,10 +28,10 @@ export async function startServer() {
 
 /** Saved characters for game shots (same shape as Appearance). */
 export const CHARACTERS = {
-  human_m: { name: 'Aldren', race: 'human', gender: 'm', skin: '#c68a5e', hairStyle: 'curto', hairColor: '#3b2619', plumeColor: '#ecebe6', eyeColor: '#3f6fa8' },
-  human_f: { name: 'Mirela', race: 'human', gender: 'f', skin: '#e8b994', hairStyle: 'longo', hairColor: '#a8432a', plumeColor: '#ecebe6', eyeColor: '#3f8a5c' },
-  harpin_m: { name: 'Kaeru', race: 'harpin', gender: 'm', skin: '#d9a57c', hairStyle: 'crista', hairColor: '#3f72c4', plumeColor: '#3f72c4', eyeColor: '#8a7a3a' },
-  harpin_f: { name: 'Sylwe', race: 'harpin', gender: 'f', skin: '#f3d2b8', hairStyle: 'plumado', hairColor: '#ecebe6', plumeColor: '#4f9a52', eyeColor: '#8a7a3a' },
+  human_m: { name: 'Aldren', race: 'human', gender: 'm', skin: '#c68a5e', hairStyle: 'curto', hairColor: '#3b2619', plumeColor: '#ecebe6', eyeColor: '#3f6fa8', clothColor: '#5c8a44' },
+  human_f: { name: 'Mirela', race: 'human', gender: 'f', skin: '#e8b994', hairStyle: 'longo', hairColor: '#a8432a', plumeColor: '#ecebe6', eyeColor: '#3f8a5c', clothColor: '#7a2f3a' },
+  harpin_m: { name: 'Kaeru', race: 'harpin', gender: 'm', skin: '#d9a57c', hairStyle: 'crista', hairColor: '#3f72c4', plumeColor: '#3f72c4', eyeColor: '#8a7a3a', clothColor: '#7a5236' },
+  harpin_f: { name: 'Sylwe', race: 'harpin', gender: 'f', skin: '#f3d2b8', hairStyle: 'plumado', hairColor: '#ecebe6', plumeColor: '#4f9a52', eyeColor: '#8a7a3a', clothColor: '#34507a' },
 };
 
 export async function shoot(browser, base, query, name, viewportName, opts = {}) {

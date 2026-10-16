@@ -67,9 +67,12 @@ function addRim(mat: THREE.MeshToonMaterial, strength: number, color: THREE.Colo
       .replace(
         '#include <opaque_fragment>',
         `{
-          float rimF = 1.0 - saturate(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)));
-          // stepped rim; not purely multiplied by the albedo so it still reads on dark materials
-          outgoingLight += (rimColor * 0.18 + diffuseColor.rgb * 0.2) * step(0.62, rimF) * rimStrength * 2.5;
+          vec3 rimN = normalize(normal); // flipped on back faces (double-sided feathers), unlike vNormal
+          float rimF = 1.0 - saturate(dot(rimN, vec3(0.0, 0.0, 1.0)));
+          // stepped rim on the upper silhouette only (faces turned down, like a tunic hem, stay
+          // clean); not purely multiplied by the albedo so it still reads on dark materials
+          float rimUp = smoothstep(-0.25, 0.25, rimN.y);
+          outgoingLight += (rimColor * 0.18 + diffuseColor.rgb * 0.2) * step(0.75, rimF) * rimUp * rimStrength * 2.5;
         }
         #include <opaque_fragment>`,
       );

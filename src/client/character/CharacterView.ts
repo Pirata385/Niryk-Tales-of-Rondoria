@@ -71,12 +71,15 @@ export class CharacterView {
       Plume: plume,
       Plume_Feather: plume,
       Eye: a.eyeColor,
+      Cloth_A: a.clothColor,
     };
     for (const [slot, color] of Object.entries(tint)) {
       for (const m of this.slots.get(slot) ?? []) m.color.set(color);
     }
+    // toggle only the top hair node of each style: a multi-material hair loads as a group whose
+    // primitive meshes are also named Hair_<style>_<n> and must stay visible inside it
     this.model.traverse((o) => {
-      if (o.name.startsWith('Hair_')) o.visible = o.name === `Hair_${a.hairStyle}`;
+      if (o.name.startsWith('Hair_') && !o.parent?.name.startsWith('Hair_')) o.visible = o.name === `Hair_${a.hairStyle}`;
     });
   }
 

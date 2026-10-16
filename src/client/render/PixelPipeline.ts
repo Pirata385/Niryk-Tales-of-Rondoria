@@ -38,9 +38,11 @@ export class PixelPipeline {
   private normals: THREE.WebGLRenderTarget;
   private xray: THREE.WebGLRenderTarget;
   private composite: THREE.WebGLRenderTarget;
-  private normalMaterial = new THREE.MeshNormalMaterial();
-  private xrayPlayerMat = new THREE.MeshBasicMaterial({ color: XRAY_PLAYER });
-  private xrayHostileMat = new THREE.MeshBasicMaterial({ color: XRAY_HOSTILE });
+  // double-sided like the feather cards: a single-sided override would see through a card's back
+  // face to a deeper layer and draw outlines / x-ray silhouettes inside a thick wing
+  private normalMaterial = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
+  private xrayPlayerMat = new THREE.MeshBasicMaterial({ color: XRAY_PLAYER, side: THREE.DoubleSide });
+  private xrayHostileMat = new THREE.MeshBasicMaterial({ color: XRAY_HOSTILE, side: THREE.DoubleSide });
   private compositeMat: THREE.ShaderMaterial;
   private upscaleMat: THREE.ShaderMaterial;
   private quadScene = new THREE.Scene();

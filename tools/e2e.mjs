@@ -112,8 +112,11 @@ async function run(browser, base, vpName) {
   }
   check(hurt, 'the wolf took sword damage');
   for (let i = 0; i < 30; i++) {
-    const w = (await state(page)).wolves.find((x) => x.id === wolf.id);
+    const cur = await state(page);
+    const w = cur.wolves.find((x) => x.id === wolf.id);
     if (!w || w.hp <= 0) break;
+    // a wolf that loses interest walks back to its den: stay on it
+    if (Math.hypot(w.x - cur.me.x, w.z - cur.me.z) > 1.6) await page.evaluate(([x, z]) => window.__niryk.teleport(x, z), [w.x + 1.0, w.z + 1.0]);
     if (touch) await page.locator('.attack-btn').tap();
     else await page.keyboard.press(' ');
     await page.waitForTimeout(300);

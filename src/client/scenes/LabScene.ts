@@ -15,6 +15,7 @@ import { createGround } from '../world/Ground';
  *   skin/haircolor/plume/eyes=<hex without #>  rot=<deg>  play (animate instead of a still)
  *   armor (wear the armor)  nosword
  *   lineup: the four bodies (valid in-game colors) and a wolf side by side, at game scale
+ *   dirs: the chosen body in 8 directions (0, 45 ... 315 deg) side by side
  */
 export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
   const q = new URLSearchParams(location.search);
@@ -41,6 +42,7 @@ export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
     hairColor: hex('haircolor') ?? base.hairColor,
     plumeColor: hex('plume') ?? base.plumeColor,
     eyeColor: hex('eyes') ?? base.eyeColor,
+    clothColor: hex('cloth') ?? base.clothColor,
   };
   const anim = (q.get('anim') ?? 'Idle') as AnimName;
   const views = Math.max(1, Math.min(4, Number(q.get('views') ?? 1)));
@@ -52,9 +54,9 @@ export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
   if (q.has('lineup')) {
     const looks: Appearance[] = [
       { ...defaultAppearance('human', 'm'), skin: '#c68a5e', hairStyle: 'curto', hairColor: '#3b2619', eyeColor: '#3f6fa8' },
-      { ...defaultAppearance('human', 'f'), skin: '#e8b994', hairStyle: 'longo', hairColor: '#a8432a', eyeColor: '#3f8a5c' },
+      { ...defaultAppearance('human', 'f'), skin: '#e8b994', hairStyle: 'longo', hairColor: '#a8432a', eyeColor: '#3f8a5c', clothColor: '#34507a' },
       { ...defaultAppearance('harpin', 'm'), skin: '#d9a57c', hairStyle: 'espetado', hairColor: '#ecebe6', plumeColor: '#2b2830', eyeColor: '#3f8a5c' },
-      { ...defaultAppearance('harpin', 'f'), skin: '#f3d2b8', hairStyle: 'plumado', hairColor: '#3f72c4', plumeColor: '#3f72c4', eyeColor: '#8a7a3a' },
+      { ...defaultAppearance('harpin', 'f'), skin: '#f3d2b8', hairStyle: 'plumado', hairColor: '#3f72c4', plumeColor: '#3f72c4', eyeColor: '#8a7a3a', clothColor: '#7a5236' },
     ];
     for (const [i, look] of looks.entries()) {
       const c = await CharacterView.create(look, { xray: 'player' });
@@ -76,7 +78,20 @@ export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
     w.update(playing ? 0 : time);
     wolves.push(w);
   }
-  for (let i = 0; i < (q.has('lineup') ? 0 : views); i++) {
+  if (q.has('dirs')) {
+    for (let i = 0; i < 8; i++) {
+      const c = await CharacterView.create(app, { xray: 'player' });
+      if (!q.has('nosword')) await equip(c, 'weapon', 'sword_iron');
+      if (q.has('armor')) await equip(c, 'armor', 'armor_guard');
+      c.root.position.copy(iso.right).multiplyScalar((i - 3.5) * 1.55);
+      c.root.rotation.y = (i * Math.PI) / 4;
+      scene.add(c.root);
+      if (playing) c.play(anim);
+      else c.pose(anim, time);
+      chars.push(c);
+    }
+  }
+  for (let i = 0; i < (q.has('lineup') || q.has('dirs') ? 0 : views); i++) {
     const c = await CharacterView.create(app, { xray: 'player' });
     if (!q.has('nosword')) await equip(c, 'weapon', 'sword_iron');
     if (q.has('armor')) await equip(c, 'armor', 'armor_guard');
@@ -96,7 +111,7 @@ export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
   const frame = () => {
     const dt = Math.min(clock.getDelta(), 0.05);
     if (playing) for (const c of [...chars, ...wolves]) c.update(dt);
-    iso.target.set(0, 0.85, 0);
+    iso.target.set(Number(q.get('tx') ?? 0), Number(q.get('ty') ?? 0.85), 0);
     lighting.follow(iso.target);
     pipeline.render(scene, iso);
     (window as unknown as { __niryk: unknown }).__niryk = { ready: true, info: pipeline.renderer.info.render };
