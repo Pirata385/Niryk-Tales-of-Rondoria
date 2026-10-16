@@ -13,7 +13,7 @@ const GENDER = { desktop: 'Masculino', phone: 'Feminino', phone_land: 'Masculino
 
 const state = (page) => page.evaluate(() => {
   const n = window.__niryk;
-  return { me: n.me, wolves: n.wolves, equipment: n.equipment, draws: n.info?.calls, tris: n.info?.triangles };
+  return { me: n.me, wolves: n.wolves, equipment: n.equipment, time: n.time, draws: n.info?.calls, tris: n.info?.triangles };
 });
 
 function check(cond, msg) {
@@ -67,10 +67,12 @@ async function run(browser, base, vpName) {
   check(saved?.race === (RACE[vpName] === 'Harpin' ? 'harpin' : 'human'), 'character saved in the browser');
   await shot('2_world');
 
-  // 3. walk, then run (run covers clearly more ground in the same time)
+  // 3. walk, then run: speeds are measured in game time (a slow software-GL frame rate stretches
+  //    wall-clock time, not the simulation)
   const cdp = touch ? await ctx.newCDPSession(page) : null;
   const moveFor = async (runFlag, ms) => {
-    const a = (await state(page)).me;
+    const s0 = await state(page);
+    const a = s0.me;
     if (touch) await joystick(page, cdp, 0, runFlag ? -120 : -36, ms);
     else {
       if (runFlag) await page.keyboard.down('Shift');
@@ -79,14 +81,15 @@ async function run(browser, base, vpName) {
       await page.keyboard.up('w');
       if (runFlag) await page.keyboard.up('Shift');
     }
-    await page.waitForTimeout(200);
-    const b = (await state(page)).me;
-    return Math.hypot(b.x - a.x, b.z - a.z);
+    const s1 = await state(page);
+    const b = s1.me;
+    return Math.hypot(b.x - a.x, b.z - a.z) / Math.max(0.05, s1.time - s0.time);
   };
   const walked = await moveFor(false, 1000);
-  check(walked > 0.8, `walked ${walked.toFixed(2)} m in 1 s`);
+  check(walked > 1.0, `walks at ${walked.toFixed(2)} m/s (game time)`);
+  await page.waitForTimeout(300);
   const ran = await moveFor(true, 1000);
-  check(ran > walked * 1.6, `ran ${ran.toFixed(2)} m in 1 s`);
+  check(ran > walked * 1.6, `runs at ${ran.toFixed(2)} m/s`);
   await shot('3_moved');
 
   // 4. fight: go next to a wolf and swing until it takes damage

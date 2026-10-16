@@ -169,6 +169,38 @@ export async function runGame(ctx: AppContext, appearance: Appearance, onNewChar
   resize();
   loading.remove();
 
+  // debug/test hooks (tools/e2e.mjs, tools/shoot.mjs): getters, so nothing is allocated per frame
+  (window as unknown as { __niryk: unknown }).__niryk = {
+    get ready() {
+      return views.has(client.myId);
+    },
+    get info() {
+      return { ...ctx.pipeline.renderer.info.render };
+    },
+    get me() {
+      const me = client.me;
+      return me && { x: me.x, z: me.z, hp: me.hp, anim: me.anim };
+    },
+    get wolves() {
+      return [...client.entities.values()].filter((e) => e.kind === 'wolf').map((e) => ({ id: e.id, x: e.x, z: e.z, hp: e.hp }));
+    },
+    get equipment() {
+      return client.equipment;
+    },
+    get time() {
+      return client.serverTime;
+    },
+    threeScene: scene,
+    teleport: (x: number, z: number) => {
+      const p = transport.server.debugPlayer('local');
+      if (p) {
+        p.x = x;
+        p.z = z;
+        client.predicted = { x, z, yaw: p.yaw };
+      }
+    },
+  };
+
   const clock = new THREE.Clock();
   let lastSelf = { x: 0, z: 0 };
   let raf = 0;
@@ -248,22 +280,6 @@ export async function runGame(ctx: AppContext, appearance: Appearance, onNewChar
 
     ctx.pipeline.render(scene, iso);
     effects.update(dt, innerWidth, innerHeight);
-    (window as unknown as { __niryk: unknown }).__niryk = {
-      ready: views.has(client.myId),
-      info: { ...ctx.pipeline.renderer.info.render },
-      me: me && { x: me.x, z: me.z, hp: me.hp, anim: me.anim },
-      wolves: [...client.entities.values()].filter((e) => e.kind === 'wolf').map((e) => ({ id: e.id, x: e.x, z: e.z, hp: e.hp })),
-      equipment: client.equipment,
-      threeScene: scene,
-      teleport: (x: number, z: number) => {
-        const p = transport.server.debugPlayer('local');
-        if (p) {
-          p.x = x;
-          p.z = z;
-          client.predicted = { x, z, yaw: p.yaw };
-        }
-      },
-    };
     raf = requestAnimationFrame(frame);
   };
   frame();

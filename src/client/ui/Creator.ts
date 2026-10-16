@@ -256,6 +256,15 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
   const resize = () => ctx.pipeline.resize(innerWidth, innerHeight, devicePixelRatio);
   addEventListener('resize', resize);
   resize();
+  (window as unknown as { __niryk: unknown }).__niryk = {
+    scene: 'creator',
+    get ready() {
+      return !!view;
+    },
+    get info() {
+      return { ...ctx.pipeline.renderer.info.render };
+    },
+  };
   const clock = new THREE.Clock();
   let raf = 0;
   let disposed = false;
@@ -284,7 +293,6 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
     }
     lighting.follow(new THREE.Vector3(0, 0, 0));
     ctx.pipeline.render(scene, iso);
-    (window as unknown as { __niryk: unknown }).__niryk = { ready: !!view, scene: 'creator', info: { ...ctx.pipeline.renderer.info.render } };
     raf = requestAnimationFrame(frame);
   };
   frame();

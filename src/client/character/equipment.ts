@@ -8,6 +8,9 @@ import type { CharacterView } from './CharacterView';
 
 /** Attached equipment objects per character (so they can be removed on unequip). */
 const attached = new WeakMap<CharacterView, Map<EquipSlot, THREE.Object3D>>();
+/** Latest request per character and slot: a slow load must not land after a newer equip/unequip. */
+const requests = new WeakMap<CharacterView, Map<EquipSlot, number>>();
+let requestId = 0;
 
 function prepare(root: THREE.Object3D, xray: boolean): void {
   root.traverse((o) => {
@@ -29,6 +32,11 @@ function prepare(root: THREE.Object3D, xray: boolean): void {
 export async function equip(view: CharacterView, slot: EquipSlot, itemId: string | null, xray = false): Promise<void> {
   const map = attached.get(view) ?? new Map<EquipSlot, THREE.Object3D>();
   attached.set(view, map);
+  const reqs = requests.get(view) ?? new Map<EquipSlot, number>();
+  requests.set(view, reqs);
+  const id = ++requestId;
+  reqs.set(slot, id);
+  const stale = () => reqs.get(slot) !== id;
   map.get(slot)?.removeFromParent();
   map.delete(slot);
   if (!itemId) return;
@@ -37,6 +45,7 @@ export async function equip(view: CharacterView, slot: EquipSlot, itemId: string
 
   if (slot === 'weapon') {
     const gltf = await loadModel(item.model);
+    if (stale()) return;
     const obj = gltf.scene.clone(true);
     prepare(obj, xray);
     view.attachPoint('Socket_Weapon_R')?.add(obj);
@@ -46,6 +55,7 @@ export async function equip(view: CharacterView, slot: EquipSlot, itemId: string
 
   // armor: rebind every skinned mesh to the character's bones (matched by name)
   const gltf = await loadModel(`${item.model}_${bodyModel(view.appearance)}`);
+  if (stale()) return;
   const skeleton = view.skeleton;
   if (!skeleton) throw new Error('character has no skeleton');
   const byName = new Map(skeleton.bones.map((b) => [b.name, b]));
