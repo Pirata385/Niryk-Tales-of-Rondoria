@@ -28,6 +28,14 @@ export interface Structure {
   rot: number;
 }
 
+/** A pond: water surface at `level`, irregular shore of mean radius `r` (see WorldData.pondDist). */
+export interface Pond {
+  x: number;
+  z: number;
+  r: number;
+  level: number;
+}
+
 export interface Den {
   x: number;
   z: number;
@@ -44,6 +52,9 @@ export interface WorldData {
   nature: NatureResult;
   colliders: Collider[];
   dens: Den[];
+  ponds: Pond[];
+  /** Signed distance (m) to the nearest pond shore: < 0 in the water. */
+  pondDist: (x: number, z: number) => number;
   spawn: { x: number; z: number };
   height: (x: number, z: number) => number;
   /** Ground splat weights: r grass B, g dirt road, b cobble plaza, a cool wood shade. */
@@ -78,11 +89,36 @@ export function generateWorld(seed: number): WorldData {
   const relief = new ValueNoise(hashSeed(seed, 'relief'));
   const plaza = { x: 0, z: 0, r: 8.5 };
 
-  const height = (x: number, z: number) => {
+  const baseHeight = (x: number, z: number) => {
     const h = (relief.fbm(x, z, 40, 3) - 0.5) * 2.2;
     const v = Math.hypot(x, z);
     const flat = Math.min(1, Math.max(0, (v - VILLAGE_RADIUS * 0.7) / (VILLAGE_RADIUS * 0.6)));
     return h * flat * flat;
+  };
+  // ponds (filled in once the roads are known): a bowl dug into the meadow with a muddy bank
+  const ponds: Pond[] = [];
+  const shoreNoise = new ValueNoise(hashSeed(seed, 'shore'));
+  const pondDistTo = (p: Pond, x: number, z: number) => {
+    const a = Math.atan2(z - p.z, x - p.x);
+    const wobble = (shoreNoise.get(Math.cos(a) * 1.6 + p.x, Math.sin(a) * 1.6 + p.z) - 0.5) * 0.45;
+    return Math.hypot(x - p.x, z - p.z) - p.r * (1 + wobble);
+  };
+  const pondDist = (x: number, z: number) => {
+    let d = Infinity;
+    for (const p of ponds) d = Math.min(d, pondDistTo(p, x, z));
+    return d;
+  };
+  const height = (x: number, z: number) => {
+    const h = baseHeight(x, z);
+    for (const p of ponds) {
+      const d = pondDistTo(p, x, z);
+      if (d > 2.2) continue;
+      // smooth bowl: the bank slopes down to just under the water at the shore, then deepens
+      const t = Math.min(1, Math.max(0, (2.2 - d) / 2.2));
+      const bowl = p.level - 0.2 - Math.max(0, -d) * 0.12;
+      return h + (bowl - h) * (t * t * (3 - 2 * t));
+    }
+    return h;
   };
 
   // roads: from the plaza edge to the world border, gently wandering
@@ -103,6 +139,18 @@ export function generateWorld(seed: number): WorldData {
     return pts;
   });
   const roadDist = (x: number, z: number) => Math.min(...roads.map((r) => distToPolyline(x, z, r)));
+
+  // two ponds in open meadows, away from the village, the roads and the woods
+  const forest = new ValueNoise(hashSeed(seed, 'forest'));
+  for (let i = 0; i < 300 && ponds.length < 2; i++) {
+    const x = rng.range(-half + 16, half - 16);
+    const z = rng.range(-half + 16, half - 16);
+    const r = rng.range(4.5, 6.5);
+    if (Math.hypot(x, z) < VILLAGE_RADIUS + 10 || roadDist(x, z) < r + 7) continue;
+    if (forest.fbm(x, z, 34, 3) > 0.42) continue;
+    if (ponds.some((p) => Math.hypot(p.x - x, p.z - z) < 50)) continue;
+    ponds.push({ x, z, r, level: baseHeight(x, z) - 0.35 });
+  }
 
   // village structures (layout around the plaza, avoiding the roads)
   const structures: Structure[] = [];
@@ -171,9 +219,20 @@ export function generateWorld(seed: number): WorldData {
       ? { kind: 'circle', x: s.x, z: s.z, r: def.w / 2 }
       : { kind: 'box', x: s.x, z: s.z, hw: def.w / 2, hd: def.d / 2, rot: s.rot };
   });
+  // water: a ring of circles along the shore keeps walkers on the bank
+  for (const p of ponds) {
+    colliders.push({ kind: 'circle', x: p.x, z: p.z, r: p.r * 0.7 });
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      let rr = p.r;
+      while (rr > 0.5 && pondDistTo(p, p.x + Math.cos(a) * rr, p.z + Math.sin(a) * rr) > -0.4) rr -= 0.1;
+      colliders.push({ kind: 'circle', x: p.x + Math.cos(a) * (rr - 0.6), z: p.z + Math.sin(a) * (rr - 0.6), r: 1.0 });
+    }
+  }
 
   const blocked = (x: number, z: number, r: number) => {
     if (Math.hypot(x - plaza.x, z - plaza.z) < plaza.r + 1 + r) return true;
+    if (pondDist(x, z) < 1.2 + r) return true;
     if (roadDist(x, z) < ROAD_HALF + 0.2 + r) return true;
     for (const s of structures) {
       const def = STRUCTURES[s.type];
@@ -190,9 +249,21 @@ export function generateWorld(seed: number): WorldData {
     blocked: (x, z, r) => blocked(x, z, r) || (Math.hypot(x, z) < VILLAGE_RADIUS * 0.75 && r > 1.5),
   });
   colliders.push(...nature.colliders.map((c) => ({ kind: 'circle' as const, ...c })));
+  // reeds and a few stones on the banks
+  const reedRng = new Rng(hashSeed(seed, 'reeds'));
+  for (const p of ponds) {
+    for (let k = 0; k < 26; k++) {
+      const a = reedRng.range(0, Math.PI * 2);
+      let rr = p.r * 1.5;
+      while (rr > 0.5 && pondDistTo(p, p.x + Math.cos(a) * rr, p.z + Math.sin(a) * rr) > 0.15) rr -= 0.1;
+      const x = p.x + Math.cos(a) * (rr + reedRng.range(0, 0.9));
+      const z = p.z + Math.sin(a) * (rr + reedRng.range(0, 0.9));
+      const frame = reedRng.chance(0.82) ? (reedRng.chance(0.5) ? 'tall_grass_1' : 'tall_grass_2') : 'rock_s1';
+      nature.placements.push({ frame, x, y: height(x, z), z, scale: reedRng.range(0.85, 1.2), flip: reedRng.chance(0.5), tint: [1, 1, 1] });
+    }
+  }
 
   // wolf dens deep in the woods, away from the village
-  const forest = new ValueNoise(hashSeed(seed, 'forest'));
   const dens: Den[] = [];
   for (let i = 0; i < 400 && dens.length < 5; i++) {
     const x = rng.range(-half + 12, half - 12);
@@ -210,8 +281,9 @@ export function generateWorld(seed: number): WorldData {
     const road = Math.max(0, Math.min(1, 1.2 - roadDist(x, z) / (ROAD_HALF + 0.6)));
     const pd = Math.hypot(x - plaza.x, z - plaza.z);
     const cob = Math.max(0, Math.min(1, (plaza.r - pd) / 1.5 + 0.5));
-    return [r, pd > plaza.r - 0.5 ? road : 0, cob, nature.shade(x, z)];
+    const bank = Math.max(0, Math.min(1, (1.1 - pondDist(x, z)) / 0.8)); // muddy shore along the water edge
+    return [r, Math.max(pd > plaza.r - 0.5 ? road : 0, bank), cob, nature.shade(x, z)];
   };
 
-  return { seed, size, half, plaza, roads, structures, nature, colliders, dens, spawn: { x: 0, z: plaza.r - 3 }, height, splat };
+  return { seed, size, half, plaza, roads, structures, nature, colliders, dens, ponds, pondDist, spawn: { x: 0, z: plaza.r - 3 }, height, splat };
 }

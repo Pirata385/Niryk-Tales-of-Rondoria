@@ -82,3 +82,21 @@ describe('placeNature', () => {
     }
   });
 });
+
+describe('ponds', () => {
+  it('sit in open meadows away from the village, sunk below the bank, and block walking', async () => {
+    const { generateWorld } = await import('../src/shared/world/worldgen');
+    const { CollisionWorld } = await import('../src/shared/world/collision');
+    const w = generateWorld(1);
+    expect(w.ponds.length).toBeGreaterThan(0);
+    const col = new CollisionWorld(w.colliders, w.half);
+    for (const p of w.ponds) {
+      expect(Math.hypot(p.x, p.z)).toBeGreaterThan(40);
+      expect(w.pondDist(p.x, p.z)).toBeLessThan(0);
+      expect(w.height(p.x, p.z)).toBeLessThan(p.level); // the water surface covers the bottom
+      expect(w.height(p.x + p.r + 3, p.z)).toBeGreaterThan(p.level); // the bank stays dry
+      expect(col.blocked(p.x, p.z, 0.3)).toBe(true);
+    }
+    expect(col.blocked(w.spawn.x, w.spawn.z, 0.3)).toBe(false);
+  });
+});

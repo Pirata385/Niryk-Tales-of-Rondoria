@@ -10,6 +10,7 @@ import { staticBatch } from '../render/staticBatch';
 import { toonFromGltf, toonMaterial } from '../render/toon';
 import { Butterflies } from './Butterflies';
 import { createGround } from './Ground';
+import { Water } from './Water';
 
 /**
  * Everything static of the world: painted ground (splat from the world generator), the 2D nature
@@ -19,6 +20,7 @@ export class WorldView {
   readonly group = new THREE.Group();
   billboards!: Billboards;
   butterflies!: Butterflies;
+  water!: Water;
 
   private constructor(readonly world: WorldData) {}
 
@@ -35,6 +37,8 @@ export class WorldView {
     );
     const ground = createGround({ grassA, grassB, dirt, cobble, noise }, { size: w.size, step: 2, height: w.height, splat: w.splat });
     this.group.add(ground);
+    this.water = new Water(w.ponds, w.pondDist, noise);
+    this.group.add(this.water.group);
 
     const structures = await this.buildStructures();
 
@@ -78,6 +82,7 @@ export class WorldView {
   update(dt: number, x: number, z: number): void {
     this.billboards.update(dt);
     this.butterflies.update(dt, x, z);
+    this.water.update(dt);
   }
 }
 
