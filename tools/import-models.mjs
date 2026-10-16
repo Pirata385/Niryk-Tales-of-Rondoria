@@ -1,7 +1,9 @@
 // Imports the GLBs exported by Pyram3D into the game, optimized for the web:
 //   - welds and simplifies dense SDF meshes to a triangle budget (meshoptimizer),
 //     skipping thin feather cards and small parts,
-//   - removes redundant animation keys, quantizes vertex data, meshopt-compresses buffers.
+//   - removes redundant animation keys, quantizes vertex data, meshopt-compresses buffers,
+//   - names every texture by its content hash, so the client can share identical painted textures
+//     between models (and batch the village into a few draw calls).
 //
 //   node tools/import-models.mjs [name ...]     (default: everything)
 //   PYRAM3D_EXPORTS=/path/to/Pyram3D/projects/niryk/exports
@@ -9,6 +11,7 @@ import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { dedup, meshopt, prune, quantize, resample, simplifyPrimitive, weld } from '@gltf-transform/functions';
 import { MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 
@@ -55,6 +58,10 @@ async function main() {
     if (only.length && !only.includes(name)) continue;
     const doc = await io.read(file);
     await doc.transform(dedup(), weld());
+    for (const tex of doc.getRoot().listTextures()) {
+      const hash = createHash('sha1').update(tex.getImage()).digest('hex').slice(0, 10);
+      tex.setName(`${tex.getName() || 'tex'}#${hash}`);
+    }
     let before = 0;
     let after = 0;
     const perMesh = [];

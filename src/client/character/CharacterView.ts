@@ -107,6 +107,15 @@ export class CharacterView {
     return this.actions.get(name)?.getClip().duration ?? 0;
   }
 
+  /** Brief white flash when hit (0..1). */
+  flash(amount: number): void {
+    if (amount === this.flashAmount) return;
+    this.flashAmount = amount;
+    for (const list of this.slots.values()) for (const m of list) m.emissive.setScalar(amount * 0.6);
+  }
+
+  private flashAmount = 0;
+
   /** Pose at a fixed time (screenshots / creator preview). */
   pose(name: AnimName, time: number): void {
     this.play(name, 0);

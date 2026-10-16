@@ -3,6 +3,7 @@
 //   node tools/shoot.mjs                      -> default set (desktop + phone portrait/landscape)
 //   node tools/shoot.mjs "?scene=test" name   -> one URL, all default viewports
 //   SHOTS=desktop node tools/shoot.mjs ...    -> restrict viewports
+//   CHAR=harpin_f node tools/shoot.mjs "" game -> start in the game with a saved character
 //
 // Images go to .shots/<name>_<viewport>.png; console errors are printed and fail the run.
 import { chromium } from '@playwright/test';
@@ -24,10 +25,21 @@ export async function startServer() {
   return { server, base: `http://127.0.0.1:${addr.port}/` };
 }
 
+/** Saved characters for game shots (same shape as Appearance). */
+export const CHARACTERS = {
+  human_m: { name: 'Aldren', race: 'human', gender: 'm', skin: '#c68a5e', hairStyle: 'curto', hairColor: '#3b2619', plumeColor: '#ecebe6', eyeColor: '#3f6fa8' },
+  human_f: { name: 'Mirela', race: 'human', gender: 'f', skin: '#e8b994', hairStyle: 'longo', hairColor: '#a8432a', plumeColor: '#ecebe6', eyeColor: '#3f8a5c' },
+  harpin_m: { name: 'Kaeru', race: 'harpin', gender: 'm', skin: '#d9a57c', hairStyle: 'crista', hairColor: '#3f72c4', plumeColor: '#3f72c4', eyeColor: '#8a7a3a' },
+  harpin_f: { name: 'Sylwe', race: 'harpin', gender: 'f', skin: '#f3d2b8', hairStyle: 'plumado', hairColor: '#ecebe6', plumeColor: '#4f9a52', eyeColor: '#8a7a3a' },
+};
+
 export async function shoot(browser, base, query, name, viewportName, opts = {}) {
   const vp = VIEWPORTS[viewportName];
   const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, ...vp });
   const page = await ctx.newPage();
+  if (opts.character) {
+    await page.addInitScript((c) => localStorage.setItem('niryk.character.v1', c), JSON.stringify(opts.character));
+  }
   const errors = [];
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -51,7 +63,7 @@ async function main() {
   let failed = false;
   try {
     for (const vp of which) {
-      const r = await shoot(browser, base, query, name, vp);
+      const r = await shoot(browser, base, query, name, vp, { character: CHARACTERS[process.env.CHAR] });
       console.log(`${r.file}  draws=${r.info?.calls ?? '?'} tris=${r.info?.triangles ?? '?'}`);
       if (r.errors.length) {
         failed = true;

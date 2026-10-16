@@ -65,7 +65,7 @@ export async function runTestScene(canvas: HTMLCanvasElement): Promise<void> {
   );
   scene.add(ground);
 
-  // --- placeholder 3D models (real assets arrive in phases 2-3)
+  // --- 3D models (the render test uses the real game assets)
   const toonify = (root: THREE.Object3D, rim: number) => {
     root.traverse((o) => {
       const mesh = o as THREE.Mesh;
@@ -76,16 +76,18 @@ export async function runTestScene(canvas: HTMLCanvasElement): Promise<void> {
       mesh.layers.enable(LAYER_OUTLINE);
     });
   };
-  const [heroG, wolfG, houseG] = await Promise.all([loadModel('t_hero'), loadModel('t_wolf'), loadModel('t_house')]);
+  const [heroG, wolfG, houseG] = await Promise.all([loadModel('human_m'), loadModel('wolf'), loadModel('house_a')]);
   const hero = cloneSkinned(heroG.scene);
   toonify(hero, 0.35);
+  hero.traverse((o) => o.name.startsWith('Hair_') && (o.visible = o.name === 'Hair_curto'));
+  const clip = (g: { animations: THREE.AnimationClip[] }, name: string) => g.animations.find((a) => a.name === name) ?? g.animations[0];
   hero.traverse((o) => (o as THREE.Mesh).isMesh && o.layers.enable(LAYER_XRAY));
   const [hx, hz] = (params.get('at') ?? '2,3').split(',').map(Number);
   hero.position.set(hx, heightAt(hx, hz), hz);
   scene.add(hero);
   const mixers: THREE.AnimationMixer[] = [];
   const heroMixer = new THREE.AnimationMixer(hero);
-  heroMixer.clipAction(heroG.animations[0]).play();
+  heroMixer.clipAction(clip(heroG, 'Idle')).play();
   mixers.push(heroMixer);
   for (const [x, z, ry] of [[6, 9, -0.6], [8, 11, -0.9]] as const) {
     const wolf = cloneSkinned(wolfG.scene);
@@ -94,7 +96,7 @@ export async function runTestScene(canvas: HTMLCanvasElement): Promise<void> {
     wolf.rotation.y = ry;
     scene.add(wolf);
     const m = new THREE.AnimationMixer(wolf);
-    m.clipAction(wolfG.animations[0]).play();
+    m.clipAction(clip(wolfG, 'Idle')).play();
     mixers.push(m);
   }
   const houses: THREE.Object3D[] = [];

@@ -19,7 +19,7 @@ export class Input {
   private readonly cleanup: (() => void)[] = [];
 
   constructor(
-    private readonly surface: HTMLElement,
+    surface: HTMLElement,
     private readonly joystick: { base: HTMLElement; knob: HTMLElement },
   ) {
     const on = <K extends keyof WindowEventMap>(t: K, f: (e: WindowEventMap[K]) => void, target: Window | HTMLElement = window) => {

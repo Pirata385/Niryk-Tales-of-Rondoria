@@ -169,6 +169,16 @@ export class PixelPipeline {
     r.render(this.quadScene, this.quadCam);
   }
 
+  /** Projects a world point to css pixels on the canvas (for DOM overlays like damage numbers). */
+  worldToCss(p: THREE.Vector3, iso: IsoCamera, cssW: number, cssH: number, out = new THREE.Vector2()): THREE.Vector2 {
+    const v = p.clone().project(iso.camera);
+    const tw = this.width + MARGIN * 2;
+    const th = this.height + MARGIN * 2;
+    const tx = ((v.x + 1) / 2) * tw - MARGIN - iso.subTexel.x;
+    const ty = ((v.y + 1) / 2) * th - MARGIN - iso.subTexel.y;
+    return out.set((tx / this.width) * cssW, (1 - ty / this.height) * cssH);
+  }
+
   /** Converts a canvas css pixel to normalized device coords of the iso camera (for picking). */
   cssToNdc(x: number, y: number, cssW: number, cssH: number, out = new THREE.Vector2()): THREE.Vector2 {
     // The camera covers width+2*MARGIN texels; the canvas shows `width` of them shifted by MARGIN+subTexel.

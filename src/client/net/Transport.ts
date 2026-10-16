@@ -1,6 +1,7 @@
 import type { ClientMsg, ServerMsg } from '@shared/protocol';
 import { TICK_DT } from '@shared/constants';
 import { GameServer } from '@server/GameServer';
+import type { WorldData } from '@shared/world/worldgen';
 
 /** How the client talks to the (local or remote) server. */
 export interface Transport {
@@ -22,11 +23,15 @@ export class LocalTransport implements Transport {
   private accumulator = 0;
   private readonly clientId = 'local';
 
-  constructor(seed: number) {
-    this.server = new GameServer(seed, (_client, msg) => {
-      const copy = structuredClone(msg);
-      for (const l of this.listeners) l(copy);
-    });
+  constructor(seed: number, world?: WorldData) {
+    this.server = new GameServer(
+      seed,
+      (_client, msg) => {
+        const copy = structuredClone(msg);
+        for (const l of this.listeners) l(copy);
+      },
+      world,
+    );
   }
 
   send(msg: ClientMsg): void {

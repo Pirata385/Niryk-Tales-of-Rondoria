@@ -52,6 +52,10 @@ export class Billboards {
   readonly shadows: THREE.InstancedMesh;
   private readonly material: THREE.MeshBasicMaterial;
   private readonly time = { value: 0 };
+  /** Upright instances that may fade when something stands behind them (trees, bushes). */
+  private readonly faders: { index: number; x: number; z: number; r: number; h: number }[] = [];
+  private fade!: THREE.InstancedBufferAttribute;
+  private faded = new Set<number>();
 
   constructor(readonly atlas: SpriteAtlas, texture: THREE.Texture, placements: SpritePlacement[]) {
     texture.magFilter = THREE.NearestFilter;
@@ -82,7 +86,19 @@ export class Billboards {
 
     const isDecal = (p: SpritePlacement) => atlas.frames[p.frame]?.kind === 'decal';
     const withShadow = placements.filter((p) => atlas.frames[p.frame]?.shadow);
-    this.sprites = this.buildMesh(placements.filter((p) => !isDecal(p)), this.material, false);
+    const upright = placements.filter((p) => !isDecal(p));
+    this.sprites = this.buildMesh(upright, this.material, false);
+    this.fade = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, upright.length)), 1);
+    this.fade.setUsage(THREE.DynamicDrawUsage);
+    this.sprites.geometry.setAttribute('fadeOn', this.fade);
+    const ppm = atlas.pxPerMeter || PX_PER_METER;
+    upright.forEach((p, index) => {
+      const f = atlas.frames[p.frame];
+      if (f.kind !== 'tree') return;
+      const s = p.scale ?? 1;
+      // half width on screen and painted height (screen meters) of the crown
+      this.faders.push({ index, x: p.x, z: p.z, r: (f.rect[2] / ppm) * s * 0.45, h: (f.rect[3] / ppm) * s });
+    });
     this.decals = this.buildMesh(placements.filter(isDecal), decalMat, true);
     this.decals.renderOrder = -2;
     this.shadows = this.buildMesh(
@@ -96,6 +112,32 @@ export class Billboards {
 
   update(dt: number): void {
     this.time.value += dt;
+  }
+
+  /**
+   * Dithers (50%) the trees that hide any of the focus points (the player, nearby hostiles):
+   * a tree in front of the point (closer to the camera) whose painted crown covers it on screen.
+   */
+  setFocus(points: { x: number; z: number }[]): void {
+    const next = new Set<number>();
+    for (const p of points) {
+      for (const t of this.faders) {
+        const dx = p.x - t.x;
+        const dz = p.z - t.z;
+        if (dx * dx + dz * dz > 100) continue;
+        // screen right: (cos45, 0, -sin45); depth toward the camera (ground back): (sin45, 0, cos45)
+        const across = (dx - dz) * Math.SQRT1_2;
+        const behind = -(dx + dz) * Math.SQRT1_2; // > 0 when the point is farther from the camera
+        if (Math.abs(across) > t.r || behind < 0.2) continue;
+        if (behind * SIN_PITCH > t.h * 0.95) continue;
+        next.add(t.index);
+      }
+    }
+    let dirty = false;
+    for (const i of this.faded) if (!next.has(i)) (this.fade.setX(i, 0), (dirty = true));
+    for (const i of next) if (!this.faded.has(i)) (this.fade.setX(i, 1), (dirty = true));
+    this.faded = next;
+    if (dirty) this.fade.needsUpdate = true;
   }
 
   private buildMesh(list: SpritePlacement[], material: THREE.Material, ground: boolean): THREE.InstancedMesh {
@@ -157,9 +199,11 @@ function patchAtlasMaterial(mat: THREE.MeshBasicMaterial, time: { value: number 
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
-        '#include <common>\nattribute vec4 uvRect;\nattribute vec2 swayData;\nuniform float uTime;',
+        upright
+          ? '#include <common>\nattribute vec4 uvRect;\nattribute vec2 swayData;\nattribute float fadeOn;\nvarying float vFade;\nuniform float uTime;'
+          : '#include <common>\nattribute vec4 uvRect;\nattribute vec2 swayData;\nuniform float uTime;',
       )
-      .replace('#include <uv_vertex>', '#include <uv_vertex>\nvMapUv = uvRect.xy + uv * uvRect.zw;')
+      .replace('#include <uv_vertex>', `#include <uv_vertex>\nvMapUv = uvRect.xy + uv * uvRect.zw;${upright ? '\nvFade = fadeOn;' : ''}`)
       .replace(
         '#include <begin_vertex>',
         upright
@@ -168,6 +212,18 @@ function patchAtlasMaterial(mat: THREE.MeshBasicMaterial, time: { value: number 
              transformed.x += sin(uTime * 1.4 + swayData.y) * swayData.x * swayT / max(length(instanceMatrix[0].xyz), 1e-4);`
           : '#include <begin_vertex>',
       );
+    if (upright) {
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying float vFade;')
+        .replace(
+          '#include <clipping_planes_fragment>',
+          `#include <clipping_planes_fragment>
+          if (vFade > 0.5) {
+            ivec2 q = ivec2(gl_FragCoord.xy) % 2;
+            if ((q.x + q.y) % 2 == 0) discard; // 2x2 checker dither: see through the crown
+          }`,
+        );
+    }
   };
   mat.customProgramCacheKey = () => (upright ? 'atlas-upright' : 'atlas-ground');
 }
