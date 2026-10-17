@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-single/
+.shots/
+test-results/
+*.log
+__pycache__/
+.DS_Store
+tools/art2d/out/
+.cache/
