@@ -45,3 +45,15 @@ export const WOLF = {
 export const WORLD_SIZE = 200;
 export const VILLAGE_RADIUS = 30;
 export const WOLF_MIN_VILLAGE_DIST = 40;
+
+/** Each player only hears about entities (and their events) within this distance (m). */
+export const INTEREST_RADIUS = 30;
+/** Hysteresis: an entity already known is dropped only beyond INTEREST_RADIUS + this (no flicker at the edge). */
+export const INTEREST_SLACK = 2;
+/** Snapshot precision: positions travel to 1/NET_PRECISION m, angles to 1/NET_PRECISION rad. */
+export const NET_PRECISION = 100;
+/** Inputs buffered per player on the server (one is simulated per tick; the oldest drop beyond this). */
+export const INPUT_QUEUE_MAX = 10;
+/** Equip requests: a burst of EQUIP_BURST, then EQUIP_RATE per second. */
+export const EQUIP_BURST = 4;
+export const EQUIP_RATE = 3;

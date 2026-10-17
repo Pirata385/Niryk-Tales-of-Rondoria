@@ -1,57 +1,22 @@
 import type { ClientMsg, ServerMsg } from '@shared/protocol';
-import { TICK_DT } from '@shared/constants';
-import { GameServer } from '@server/GameServer';
-import type { WorldData } from '@shared/world/worldgen';
 
 /** How the client talks to the (local or remote) server. */
 export interface Transport {
   send(msg: ClientMsg): void;
   onMessage(cb: (msg: ServerMsg) => void): void;
-  /** Called by the client loop; the local transport advances the in-process server here. */
+  /** Called by the client loop every frame; the local transport advances its in-process server here. */
   update(dt: number): void;
   close(): void;
+  /**
+   * Test and tool helpers (tools/e2e.mjs, tools/shoot.mjs) that only an in-process server can
+   * offer. The game reads them only in debug mode (dev server or ?debug).
+   */
+  readonly debug?: TransportDebug;
 }
 
-/**
- * Runs the authoritative GameServer in this tab, at its fixed tick rate. Messages are cloned in
- * both directions so client and server never share objects (exactly like a network would).
- * Swap for a WebSocketTransport to play online — nothing else changes.
- */
-export class LocalTransport implements Transport {
-  readonly server: GameServer;
-  private listeners: ((msg: ServerMsg) => void)[] = [];
-  private accumulator = 0;
-  private readonly clientId = 'local';
-
-  constructor(seed: number, world?: WorldData) {
-    this.server = new GameServer(
-      seed,
-      (_client, msg) => {
-        const copy = structuredClone(msg);
-        for (const l of this.listeners) l(copy);
-      },
-      world,
-    );
-  }
-
-  send(msg: ClientMsg): void {
-    this.server.receive(this.clientId, structuredClone(msg));
-  }
-
-  onMessage(cb: (msg: ServerMsg) => void): void {
-    this.listeners.push(cb);
-  }
-
-  update(dt: number): void {
-    this.accumulator += Math.min(dt, 0.25);
-    while (this.accumulator >= TICK_DT) {
-      this.accumulator -= TICK_DT;
-      this.server.tick(TICK_DT);
-    }
-  }
-
-  close(): void {
-    this.server.leave(this.clientId);
-    this.listeners = [];
-  }
+export interface TransportDebug {
+  /** Moves the local player (server side; the client's prediction follows at the next snapshot). */
+  teleport(x: number, z: number): void;
+  /** Every wolf of the world: the client itself only hears about the ones near the player. */
+  wolves(): { id: number; x: number; z: number; hp: number }[];
 }

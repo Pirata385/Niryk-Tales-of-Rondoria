@@ -3,11 +3,11 @@ import type { Appearance } from '@shared/appearance';
 import { WOLF } from '@shared/constants';
 import type { EntityState, Equipment, GameEvent } from '@shared/protocol';
 import { CollisionWorld } from '@shared/world/collision';
-import { generateWorld } from '@shared/world/worldgen';
+import { worldForSeed } from '@shared/world/worldCache';
 import { CharacterView, type AnimName } from '../character/CharacterView';
 import { equip } from '../character/equipment';
 import { Input } from '../input/Input';
-import { LocalTransport } from '../net/Transport';
+import { LocalTransport } from '../net/LocalTransport';
 import { CAMERA_PITCH_DEG, IsoCamera } from '../render/IsoCamera';
 import { Lighting } from '../render/Lighting';
 import type { PixelPipeline } from '../render/PixelPipeline';
@@ -47,10 +47,12 @@ export async function runGame(ctx: AppContext, appearance: Appearance, onNewChar
   ctx.ui.append(loading);
   await new Promise((r) => setTimeout(r, 30)); // let the loading text paint
 
-  const world = generateWorld(WORLD_SEED);
+  const transport = new LocalTransport(WORLD_SEED);
+  const client = new GameClient(transport);
+  const welcome = await client.join(appearance);
+  const world = worldForSeed(welcome.seed);
   const collision = new CollisionWorld(world.colliders, world.half);
-  const transport = new LocalTransport(WORLD_SEED, world);
-  const client = new GameClient(transport, collision);
+  client.setCollision(collision);
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#1b1424');
@@ -89,12 +91,9 @@ export async function runGame(ctx: AppContext, appearance: Appearance, onNewChar
   };
   client.onError = (m) => console.error(m);
   client.onEvent = (e) => onEvent(e);
+  hud.setInventory(client.equipment, client.items); // the inventory came with the welcome, before these hooks
 
-  client.join(appearance);
-  // the local server answers synchronously: wait for the first snapshot
-  client.update(0.06, { mx: 0, mz: 0, run: false, attack: false, aim: null });
-  const me0 = client.me;
-  if (me0) client.predicted = { x: me0.x, z: me0.z, yaw: me0.yaw };
+  await client.waitForSelf();
 
   async function createView(e: EntityState): Promise<void> {
     if (pending.has(e.id)) return;
@@ -182,7 +181,7 @@ export async function runGame(ctx: AppContext, appearance: Appearance, onNewChar
       return me && { x: me.x, z: me.z, hp: me.hp, anim: me.anim };
     },
     get wolves() {
-      return [...client.entities.values()].filter((e) => e.kind === 'wolf').map((e) => ({ id: e.id, x: e.x, z: e.z, hp: e.hp }));
+      return transport.debug.wolves();
     },
     get equipment() {
       return client.equipment;
@@ -191,14 +190,7 @@ export async function runGame(ctx: AppContext, appearance: Appearance, onNewChar
       return client.serverTime;
     },
     threeScene: scene,
-    teleport: (x: number, z: number) => {
-      const p = transport.server.debugPlayer('local');
-      if (p) {
-        p.x = x;
-        p.z = z;
-        client.predicted = { x, z, yaw: p.yaw };
-      }
-    },
+    teleport: (x: number, z: number) => transport.debug.teleport(x, z),
   };
 
   const clock = new THREE.Clock();

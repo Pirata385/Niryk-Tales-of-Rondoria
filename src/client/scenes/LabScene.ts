@@ -1,9 +1,13 @@
 import * as THREE from 'three';
 import { defaultAppearance, type Appearance, type Gender, type Race } from '@shared/appearance';
-import { loadTexture } from '../core/assets';
+import { WOLF } from '@shared/constants';
+import { loadSpriteAtlas, loadTexture } from '../core/assets';
 import { CharacterView, type AnimName } from '../character/CharacterView';
 import { equip } from '../character/equipment';
+import { Effects } from '../game/Effects';
+import { Markers } from '../game/Markers';
 import { WolfView } from '../game/WolfView';
+import { Billboards } from '../render/Billboards';
 import { IsoCamera } from '../render/IsoCamera';
 import { Lighting } from '../render/Lighting';
 import { PixelPipeline } from '../render/PixelPipeline';
@@ -16,6 +20,9 @@ import { createGround } from '../world/Ground';
  *   armor (wear the armor)  nosword
  *   lineup: the four bodies (valid in-game colors) and a wolf side by side, at game scale
  *   dirs: the chosen body in 8 directions (0, 45 ... 315 deg) side by side
+ *   markers (with lineup): legibility markers as in the game: the ground ring under the first
+ *     body, a health bar and a lunge warning (warn=<0..1> progress) on the lineup wolf over a
+ *     cobble patch, and a second wounded, warning wolf hidden behind a tree canopy
  */
 export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
   const q = new URLSearchParams(location.search);
@@ -26,11 +33,21 @@ export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
   iso.zoom = Number(q.get('zoom') ?? 1);
   const lighting = new Lighting(scene);
 
+  const markersOn = q.has('markers') && q.has('lineup');
+  // markers: lineup wolf position (stands on cobble) and the hidden wolf + the tree in front of it
+  const wolfAt = new THREE.Vector3().copy(iso.right).multiplyScalar(2 * 1.6 + 0.6);
+  const hiddenAt = new THREE.Vector3().copy(iso.right).multiplyScalar(-0.8).addScaledVector(iso.groundUp, 6);
+  const treeAt = new THREE.Vector3().copy(iso.right).multiplyScalar(-0.8).addScaledVector(iso.groundUp, 2.5);
+
   const [grassA, grassB, dirt, cobble, noise] = await Promise.all(
     ['ground_grass_a', 'ground_grass_b', 'ground_dirt', 'ground_cobble', 'noise'].map((n) => loadTexture(`sprites/${n}.png`)),
   );
+  const cobbleAt = (x: number, z: number) => (markersOn && Math.hypot(x - wolfAt.x, z - wolfAt.z) < 2.2 ? 1 : 0);
   scene.add(
-    createGround({ grassA, grassB, dirt, cobble, noise }, { size: 32, step: 2, height: () => 0, splat: () => [0, 0, 0, 0] }),
+    createGround(
+      { grassA, grassB, dirt, cobble, noise },
+      { size: 32, step: 2, height: () => 0, splat: (x, z) => [0, 0, cobbleAt(x, z), 0] },
+    ),
   );
 
   const base = defaultAppearance((q.get('race') as Race) ?? 'human', (q.get('gender') as Gender) ?? 'm');
@@ -71,7 +88,7 @@ export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
       chars.push(c);
     }
     const w = await WolfView.create();
-    w.root.position.copy(iso.right).multiplyScalar(2 * 1.6 + 0.6);
+    w.root.position.copy(wolfAt);
     w.root.rotation.y = rot0 - Math.PI / 4;
     scene.add(w.root);
     const wolfAnim = ({ Idle: 'Idle', Walk: 'Walk', Run: 'Run', Attack1: 'Attack', Attack2: 'Attack', Hit: 'Hit', Death: 'Death' } as const)[anim] ?? 'Idle';
@@ -79,7 +96,22 @@ export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
     w.setXray(wolfAnim !== 'Death');
     w.update(playing ? 0 : time);
     wolves.push(w);
+    if (markersOn) {
+      const hidden = await WolfView.create();
+      hidden.root.position.copy(hiddenAt);
+      hidden.root.rotation.y = rot0 + Math.PI / 4;
+      hidden.setAnim('Idle', 0, 0);
+      hidden.update(0);
+      scene.add(hidden.root);
+      wolves.push(hidden);
+      const { atlas, texture } = await loadSpriteAtlas('nature');
+      scene.add(new Billboards(atlas, texture, [{ frame: 'oak_round_1', x: treeAt.x, y: 0, z: treeAt.z }]).group);
+    }
   }
+  const markers = new Markers(iso);
+  const effects = new Effects(document.createElement('div'), pipeline, iso);
+  if (markersOn) scene.add(markers.group, effects.group);
+  const warn = Number(q.get('warn') ?? 0.4);
   if (q.has('dirs')) {
     for (let i = 0; i < 8; i++) {
       const c = await CharacterView.create(app, { xray: 'player' });
@@ -116,7 +148,18 @@ export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
     if (playing) for (const c of [...chars, ...wolves]) c.update(dt);
     iso.target.set(Number(q.get('tx') ?? 0), Number(q.get('ty') ?? 0.85), Number(q.get('tz') ?? 0));
     lighting.follow(iso.target);
+    if (markersOn) {
+      // same calls as the game makes every frame (see GameScene)
+      const me = chars[0].root.position;
+      markers.beginFrame();
+      markers.playerRing(me.x, 0, me.z);
+      markers.wolfBar(wolfAt.x, 0, wolfAt.z, 35, WOLF.hp);
+      markers.wolfBar(hiddenAt.x, 0, hiddenAt.z, 9, WOLF.hp);
+      effects.telegraph(1, true, wolfAt.x, 0, wolfAt.z, warn);
+      effects.telegraph(2, true, hiddenAt.x, 0, hiddenAt.z, 0);
+    }
     pipeline.render(scene, iso);
+    effects.update(dt, innerWidth, innerHeight);
     (window as unknown as { __niryk: unknown }).__niryk = { ready: true, info: pipeline.renderer.info.render };
     requestAnimationFrame(frame);
   };

@@ -77,6 +77,20 @@ export class IsoCamera {
     cam.updateMatrixWorld();
   }
 
+  /**
+   * Moves `p` in the view plane (its depth is kept) so that a screen-aligned rect of w x h
+   * internal pixels centered on it starts exactly on a texel edge. The texel grid is fixed in the
+   * world (the camera itself snaps to it), so snapped markers keep the same pixels every frame:
+   * crisp, no shimmer. Valid once the pipeline has rendered (it sets the viewport).
+   */
+  snapToTexels(p: THREE.Vector3, w = 0, h = 0): THREE.Vector3 {
+    const ppm = this.pixelsPerMeter;
+    // texel edges sit at (integer - viewport/2) texels along right/up: odd viewports shift them
+    const x = p.dot(this.right) * ppm - w / 2 + this.width / 2;
+    const y = p.dot(this.up) * ppm - h / 2 + this.height / 2;
+    return p.addScaledVector(this.right, (Math.round(x) - x) / ppm).addScaledVector(this.up, (Math.round(y) - y) / ppm);
+  }
+
   /** Converts a screen-space direction (x right, y down) into a ground-plane (XZ) direction. */
   screenToGround(dx: number, dy: number, out = new THREE.Vector2()): THREE.Vector2 {
     const gx = this.right.x * dx - this.groundUp.x * dy;

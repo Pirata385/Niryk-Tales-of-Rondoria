@@ -69,6 +69,7 @@ describe('GameServer', () => {
     const { server } = makeServer();
     const p = server.debugPlayer('c1')!;
     server.receive('c1', { t: 'input', seq: 1, mx: 0, mz: 0, run: false, attack: true, aim: 0 });
+    server.tick(); // inputs are queued and simulated one per tick
     expect(p.anim).toBe('Attack1');
     ticks(server, ATTACKS.Attack1.chainFrom + 0.05);
     server.receive('c1', { t: 'input', seq: 2, mx: 0, mz: 0, run: false, attack: true, aim: 0 });

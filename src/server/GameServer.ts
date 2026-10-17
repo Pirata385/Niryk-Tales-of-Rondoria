@@ -4,37 +4,49 @@
  */
 import { validateAppearance, type Appearance } from '../shared/appearance';
 import {
-  ATTACKS, ATTACK_MOVE_SPEED, HIT_STUN, OUT_OF_COMBAT, PLAYER_HP, PLAYER_RADIUS, PLAYER_REGEN, RESPAWN_DELAY,
-  TICK_DT, TURN_RATE, UNARMED_DAMAGE, WOLF,
+  ATTACKS, EQUIP_BURST, EQUIP_RATE, HIT_STUN, INPUT_QUEUE_MAX, INTEREST_RADIUS, INTEREST_SLACK, OUT_OF_COMBAT,
+  PLAYER_HP, PLAYER_RADIUS, PLAYER_REGEN, RESPAWN_DELAY, TICK_DT, TURN_RATE, UNARMED_DAMAGE, WOLF,
 } from '../shared/constants';
 import { ITEMS, STARTING_EQUIPMENT, STARTING_INVENTORY, type EquipSlot } from '../shared/items';
 import { Rng } from '../shared/math/random';
-import type { ClientMsg, EntityAnim, EntityState, Equipment, GameEvent, ServerMsg } from '../shared/protocol';
+import { stepPlayer, turnToward, wrapAngle, type AttackName, type PlayerInput, type PlayerMotion } from '../shared/movement';
+import {
+  quantize, quantizeAngle, type ClientMsg, type EntityAnim, type EntityState, type Equipment, type GameEvent, type SelfState,
+  type ServerMsg,
+} from '../shared/protocol';
 import { CollisionWorld } from '../shared/world/collision';
 import { generateWorld, type Den, type WorldData } from '../shared/world/worldgen';
-import { stepMovement, turnToward } from '../shared/movement';
 
-type AttackName = keyof typeof ATTACKS;
+interface QueuedInput extends PlayerInput {
+  seq: number;
+}
 
-interface Player {
+interface Player extends PlayerMotion {
   id: number;
   client: string;
   appearance: Appearance;
-  x: number;
-  z: number;
-  yaw: number;
   hp: number;
   anim: EntityAnim;
   animStart: number;
-  input: { seq: number; mx: number; mz: number; run: boolean; aim: number | null };
-  lastSeq: number;
-  attack: { name: AttackName; start: number; hit: boolean; queued: boolean } | null;
-  stunUntil: number;
+  /** Inputs received and not simulated yet: one is consumed per tick. */
+  inputs: QueuedInput[];
+  /** The last simulated input (its movement is repeated while the queue is empty). */
+  last: QueuedInput;
+  /** Highest seq received: anything not newer is stale or a duplicate. */
+  received: number;
+  /** Seq of the last simulated input (the snapshot's ack). */
+  ack: number;
   lastCombat: number;
-  dead: boolean;
   respawnAt: number;
   equipment: Equipment;
+  /** Bumped on every equipment change, so clients get the equipment only when it changes. */
+  equipVersion: number;
+  /** Equip rate limit (token bucket). */
+  equipTokens: number;
+  equipRefill: number;
   items: string[];
+  /** Entities this client was sent, with the equipment version it has (interest management). */
+  known: Map<number, number>;
 }
 
 type WolfState = 'idle' | 'wander' | 'chase' | 'attack' | 'return' | 'dead';
@@ -59,7 +71,18 @@ interface Wolf {
   respawnAt: number;
 }
 
+/** An entity's per-tick wire state, built once and shared by every client that sees it. */
+interface Visible {
+  state: EntityState;
+  x: number;
+  z: number;
+  player: Player | null;
+}
+
 export type Send = (client: string, msg: ServerMsg) => void;
+
+/** A chasing wolf stops this far from its target (never inside the bite range's inner part). */
+const CHASE_STOP = WOLF.attackRange * 0.8;
 
 export class GameServer {
   readonly world: WorldData;
@@ -86,18 +109,18 @@ export class GameServer {
 
   // ------------------------------------------------------------------ connection
 
+  /** Handles a message from a client. Everything in it is untrusted: shapes and values are checked. */
   receive(client: string, msg: ClientMsg): void {
+    if (!msg || typeof msg !== 'object') return;
     if (msg.t === 'join') return this.join(client, msg.appearance);
     const p = this.players.get(client);
     if (!p) return;
     switch (msg.t) {
       case 'input':
-        if (msg.seq <= p.input.seq) return;
-        p.input = { seq: msg.seq, mx: clampUnit(msg.mx), mz: clampUnit(msg.mz), run: !!msg.run, aim: msg.aim };
-        if (msg.attack) this.pressAttack(p);
+        this.queueInput(p, msg);
         break;
       case 'equip':
-        this.equip(p, msg.slot, msg.item);
+        this.requestEquip(p, msg.slot, msg.item);
         break;
       case 'respawn':
         if (p.dead && this.time >= p.respawnAt) this.respawn(p);
@@ -109,36 +132,71 @@ export class GameServer {
     this.players.delete(client);
   }
 
-  private join(client: string, appearance: Appearance): void {
-    const errors = validateAppearance(appearance);
-    if (errors.length) {
+  private join(client: string, appearance: unknown): void {
+    const a = readAppearance(appearance);
+    const errors = a ? validateAppearance(a) : ['appearance'];
+    if (!a || errors.length) {
       this.send(client, { t: 'error', message: `aparência inválida: ${errors.join(', ')}` });
       return;
     }
     const { spawn } = this.world;
+    const idle: QueuedInput = { seq: 0, mx: 0, mz: 0, run: false, attack: false, aim: null };
     const p: Player = {
       id: this.nextId++,
       client,
-      appearance,
+      appearance: a,
       x: spawn.x,
       z: spawn.z,
       yaw: Math.PI,
+      swing: null,
+      stun: 0,
+      dead: false,
       hp: PLAYER_HP,
       anim: 'Idle',
       animStart: this.time,
-      input: { seq: 0, mx: 0, mz: 0, run: false, aim: null },
-      lastSeq: 0,
-      attack: null,
-      stunUntil: 0,
+      inputs: [],
+      last: idle,
+      received: 0,
+      ack: 0,
       lastCombat: -99,
-      dead: false,
       respawnAt: 0,
       equipment: { ...STARTING_EQUIPMENT },
+      equipVersion: 0,
+      equipTokens: EQUIP_BURST,
+      equipRefill: this.time,
       items: [...STARTING_INVENTORY],
+      known: new Map(),
     };
     this.players.set(client, p);
     this.send(client, { t: 'welcome', id: p.id, seed: this.seed, time: this.time });
     this.sendInventory(p);
+  }
+
+  /** Validates an input and queues it; the simulation consumes one per tick (see updatePlayer). */
+  private queueInput(p: Player, msg: Extract<ClientMsg, { t: 'input' }>): void {
+    const seq = msg.seq;
+    if (!Number.isSafeInteger(seq) || seq <= p.received) return; // stale, duplicate or malformed
+    p.received = seq;
+    let mx = clampUnit(msg.mx);
+    let mz = clampUnit(msg.mz);
+    const len = Math.hypot(mx, mz);
+    if (len > 1) {
+      mx /= len;
+      mz /= len;
+    }
+    const aim = Number.isFinite(msg.aim) ? wrapAngle(msg.aim as number) : null;
+    p.inputs.push({ seq, mx, mz, run: msg.run === true, attack: msg.attack === true, aim });
+    if (p.inputs.length > INPUT_QUEUE_MAX) p.inputs.shift(); // a burst beyond the cap drops the oldest
+  }
+
+  private requestEquip(p: Player, slot: unknown, item: unknown): void {
+    if (slot !== 'weapon' && slot !== 'armor') return;
+    if (item !== null && (typeof item !== 'string' || !Object.hasOwn(ITEMS, item))) return;
+    p.equipTokens = Math.min(EQUIP_BURST, p.equipTokens + (this.time - p.equipRefill) * EQUIP_RATE);
+    p.equipRefill = this.time;
+    if (p.equipTokens < 1) return; // spam: ignored
+    p.equipTokens -= 1;
+    this.equip(p, slot, item);
   }
 
   private equip(p: Player, slot: EquipSlot, item: string | null): void {
@@ -150,6 +208,7 @@ export class GameServer {
     }
     if (current) p.items.push(current);
     p.equipment[slot] = item;
+    p.equipVersion++;
     this.sendInventory(p);
   }
 
@@ -163,12 +222,14 @@ export class GameServer {
     this.time += dt;
     for (const p of this.players.values()) this.updatePlayer(p, dt);
     for (const w of this.wolves) this.updateWolf(w, dt);
-    const entities = this.snapshot();
-    const events = this.events;
-    this.events = [];
-    for (const p of this.players.values()) {
-      this.send(p.client, { t: 'snapshot', time: this.time, ack: p.input.seq, entities, events });
+    // respawns after the loop: removing wolves while iterating would skip the next one's tick
+    const due = this.wolves.filter((w) => w.state === 'dead' && this.time >= w.respawnAt);
+    for (const w of due) {
+      this.wolves.splice(this.wolves.indexOf(w), 1);
+      this.spawnWolf(w.den);
     }
+    this.broadcast();
+    this.events = [];
   }
 
   private setAnim(e: { anim: EntityAnim; animStart: number }, anim: EntityAnim, restart = false): void {
@@ -178,55 +239,36 @@ export class GameServer {
     }
   }
 
-  private pressAttack(p: Player): void {
-    if (p.dead || this.time < p.stunUntil) return;
-    if (!p.attack) return this.startAttack(p, 'Attack1');
-    const a = ATTACKS[p.attack.name];
-    const t = this.time - p.attack.start;
-    if (p.attack.name === 'Attack1' && t >= a.chainFrom && t <= a.chainTo) p.attack.queued = true;
-  }
-
-  private startAttack(p: Player, name: AttackName): void {
-    if (p.input.aim !== null) p.yaw = p.input.aim;
-    p.attack = { name, start: this.time, hit: false, queued: false };
-    this.setAnim(p, name, true);
-    this.events.push({ e: 'swing', id: p.id, anim: name });
-  }
-
   private updatePlayer(p: Player, dt: number): void {
+    // exactly one input per tick, in order; if none arrived in time keep the last movement intent
+    // (without its attack) and acknowledge nothing new
+    const next = p.inputs.shift();
+    let input: PlayerInput;
+    if (next) {
+      p.last = next;
+      p.ack = next.seq;
+      input = next;
+    } else {
+      input = { ...p.last, attack: false };
+    }
     if (p.dead) {
       if (this.time >= p.respawnAt + 6) this.respawn(p); // auto respawn
       return;
     }
-    p.lastSeq = p.input.seq;
-    if (p.attack) {
-      const def = ATTACKS[p.attack.name];
-      const t = this.time - p.attack.start;
-      if (!p.attack.hit && t >= def.hit) {
-        p.attack.hit = true;
-        this.resolveSwing(p, def);
-      }
-      // a slight forward drift while swinging
-      const [x, z] = this.collision.move(p.x, p.z, PLAYER_RADIUS, Math.sin(p.yaw) * ATTACK_MOVE_SPEED * dt, Math.cos(p.yaw) * ATTACK_MOVE_SPEED * dt);
-      p.x = x;
-      p.z = z;
-      if (t >= def.duration) {
-        const queued = p.attack.queued;
-        p.attack = null;
-        if (queued) this.startAttack(p, 'Attack2');
-      }
-      if (p.attack) return;
+    // the same step the client predicts with (shared/movement.ts)
+    const r = stepPlayer(this.collision, p, input, dt);
+    if (r.hit) this.resolveSwing(p, r.hit);
+    if (r.started) {
+      this.setAnim(p, r.started, true);
+      this.events.push({ e: 'swing', id: p.id, anim: r.started });
     }
-    if (this.time < p.stunUntil) return;
-    const r = stepMovement(this.collision, p, p.input, dt);
-    p.x = r.x;
-    p.z = r.z;
-    p.yaw = r.yaw;
-    this.setAnim(p, r.moving ? (p.input.run ? 'Run' : 'Walk') : 'Idle');
+    if (p.swing || p.stun > 0) return; // the swing or Hit clip keeps playing
+    this.setAnim(p, r.moving ? (input.run ? 'Run' : 'Walk') : 'Idle');
     if (this.time - p.lastCombat > OUT_OF_COMBAT) p.hp = Math.min(PLAYER_HP, p.hp + PLAYER_REGEN * dt);
   }
 
-  private resolveSwing(p: Player, def: (typeof ATTACKS)[AttackName]): void {
+  private resolveSwing(p: Player, name: AttackName): void {
+    const def = ATTACKS[name];
     const weapon = p.equipment.weapon ? ITEMS[p.equipment.weapon] : null;
     const [lo, hi] = weapon?.damage ?? UNARMED_DAMAGE;
     const half = (def.arc / 2) * (Math.PI / 180);
@@ -247,7 +289,7 @@ export class GameServer {
   private damageWolf(w: Wolf, amount: number, from: Player, crit: boolean): void {
     w.hp -= amount;
     from.lastCombat = this.time;
-    this.events.push({ e: 'damage', target: w.id, source: from.id, amount, x: w.x, z: w.z, crit });
+    this.events.push({ e: 'damage', target: w.id, source: from.id, amount, x: quantize(w.x), z: quantize(w.z), crit });
     if (w.hp <= 0) {
       w.hp = 0;
       w.state = 'dead';
@@ -269,19 +311,20 @@ export class GameServer {
     const final = Math.max(1, Math.round(amount * (1 - (armor?.defense ?? 0))));
     p.hp -= final;
     p.lastCombat = this.time;
-    this.events.push({ e: 'damage', target: p.id, source: from.id, amount: final, x: p.x, z: p.z });
+    this.events.push({ e: 'damage', target: p.id, source: from.id, amount: final, x: quantize(p.x), z: quantize(p.z) });
     if (p.hp <= 0) {
       p.hp = 0;
       p.dead = true;
-      p.attack = null;
+      p.swing = null;
+      p.stun = 0;
       p.respawnAt = this.time + RESPAWN_DELAY;
       this.setAnim(p, 'Death', true);
       this.events.push({ e: 'death', id: p.id });
       for (const w of this.wolves) if (w.target === p.id) this.startReturn(w);
       return;
     }
-    if (!p.attack) {
-      p.stunUntil = this.time + HIT_STUN;
+    if (!p.swing) {
+      p.stun = HIT_STUN;
       this.setAnim(p, 'Hit', true);
     }
   }
@@ -291,7 +334,8 @@ export class GameServer {
     p.hp = PLAYER_HP;
     p.x = this.world.spawn.x;
     p.z = this.world.spawn.z;
-    p.stunUntil = 0;
+    p.swing = null;
+    p.stun = 0;
     this.setAnim(p, 'Idle', true);
     this.events.push({ e: 'respawn', id: p.id });
   }
@@ -350,15 +394,13 @@ export class GameServer {
   }
 
   private updateWolf(w: Wolf, dt: number): void {
+    if (w.state === 'dead') return; // respawned by tick() once w.respawnAt passes
+    this.thinkWolf(w, dt);
+    this.separate(w);
+  }
+
+  private thinkWolf(w: Wolf, dt: number): void {
     const t = this.time;
-    if (w.state === 'dead') {
-      if (t >= w.respawnAt) {
-        const idx = this.wolves.indexOf(w);
-        this.wolves.splice(idx, 1);
-        this.spawnWolf(w.den);
-      }
-      return;
-    }
     if (t < w.hitUntil) return;
     const fromDen = Math.hypot(w.x - w.den.x, w.z - w.den.z);
     if (w.state !== 'return' && fromDen > WOLF.leashRange) this.startReturn(w);
@@ -407,7 +449,7 @@ export class GameServer {
           break;
         }
         this.setAnim(w, d > WOLF.attackRange + 0.3 ? 'Run' : 'Idle');
-        if (d > WOLF.attackRange * 0.85) this.moveWolf(w, p.x, p.z, WOLF.runSpeed, dt, WOLF.attackRange * 0.8);
+        if (d > WOLF.attackRange * 0.85) this.moveWolf(w, p.x, p.z, WOLF.runSpeed, dt, CHASE_STOP);
         else w.yaw = turnToward(w.yaw, Math.atan2(p.x - w.x, p.z - w.z), TURN_RATE * dt);
         break;
       }
@@ -445,24 +487,83 @@ export class GameServer {
     }
   }
 
-  // ------------------------------------------------------------------ snapshot
-
-  private snapshot(): EntityState[] {
-    const out: EntityState[] = [];
-    for (const p of this.players.values()) {
-      out.push({
-        id: p.id, kind: 'player', x: p.x, z: p.z, yaw: p.yaw, anim: p.anim, animStart: p.animStart, hp: Math.ceil(p.hp),
-        maxHp: PLAYER_HP, name: p.appearance.name, appearance: p.appearance, equipment: { ...p.equipment },
-      });
-    }
-    for (const w of this.wolves) {
-      const telegraph = w.state === 'attack' && this.time - w.attackStart < WOLF.windup;
-      out.push({ id: w.id, kind: 'wolf', x: w.x, z: w.z, yaw: w.yaw, anim: w.anim, animStart: w.animStart, hp: Math.ceil(w.hp), maxHp: WOLF.hp, telegraph });
-    }
-    return out;
+  /**
+   * Keeps a wolf out of every living player and other wolf. Only the wolf moves (players stay
+   * exactly where their client predicted them), sliding along scenery like any movement; between
+   * two wolves each takes half the overlap on its own update.
+   */
+  private separate(w: Wolf): void {
+    let px = 0;
+    let pz = 0;
+    const push = (ox: number, oz: number, min: number, share: number) => {
+      const dx = w.x - ox;
+      const dz = w.z - oz;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= min * min) return;
+      const d = Math.sqrt(d2);
+      if (d < 1e-4) {
+        // exactly on top: back off along the wolf's facing
+        px -= Math.sin(w.yaw) * min * share;
+        pz -= Math.cos(w.yaw) * min * share;
+        return;
+      }
+      const k = ((min - d) / d) * share;
+      px += dx * k;
+      pz += dz * k;
+    };
+    for (const p of this.players.values()) if (!p.dead) push(p.x, p.z, WOLF.radius + PLAYER_RADIUS, 1);
+    for (const o of this.wolves) if (o !== w && o.state !== 'dead') push(o.x, o.z, WOLF.radius * 2, 0.5);
+    if (px === 0 && pz === 0) return;
+    [w.x, w.z] = this.collision.move(w.x, w.z, WOLF.radius, px, pz);
   }
 
-  /** Test/debug helpers. */
+  // ------------------------------------------------------------------ snapshots
+
+  /**
+   * Sends each player the entities within its interest radius (always itself), quantized, plus the
+   * events about them. Appearance goes only with an entity's first appearance to that client and
+   * equipment only when it changed since the client last got it.
+   */
+  private broadcast(): void {
+    const all: Visible[] = [];
+    for (const p of this.players.values()) {
+      all.push({ state: entityState(p, 'player', PLAYER_HP), x: p.x, z: p.z, player: p });
+    }
+    for (const w of this.wolves) {
+      const s = entityState(w, 'wolf', WOLF.hp);
+      if (w.state === 'attack' && this.time - w.attackStart < WOLF.windup) s.telegraph = true;
+      all.push({ state: s, x: w.x, z: w.z, player: null });
+    }
+    for (const viewer of this.players.values()) {
+      const known = new Map<number, number>();
+      const entities: EntityState[] = [];
+      for (const v of all) {
+        const id = v.state.id;
+        const had = viewer.known.get(id);
+        if (v.player !== viewer) {
+          const r = had === undefined ? INTEREST_RADIUS : INTEREST_RADIUS + INTEREST_SLACK;
+          const dx = v.x - viewer.x;
+          const dz = v.z - viewer.z;
+          if (dx * dx + dz * dz > r * r) continue;
+        }
+        let state = v.state;
+        if (v.player) {
+          const version = v.player.equipVersion;
+          if (had === undefined) state = { ...state, appearance: v.player.appearance, equipment: { ...v.player.equipment } };
+          else if (had !== version) state = { ...state, equipment: { ...v.player.equipment } };
+          known.set(id, version);
+        } else {
+          known.set(id, 0);
+        }
+        entities.push(state);
+      }
+      viewer.known = known;
+      const events = this.events.filter((e) => (e.e === 'damage' ? known.has(e.target) || known.has(e.source) : known.has(e.id)));
+      this.send(viewer.client, { t: 'snapshot', time: this.time, ack: viewer.ack, entities, events, you: selfState(viewer) });
+    }
+  }
+
+  /** Test/debug helpers (LocalTransport's debug interface, unit tests). */
   get wolfCount(): number {
     return this.wolves.filter((w) => w.state !== 'dead').length;
   }
@@ -474,15 +575,44 @@ export class GameServer {
   debugWolves(): readonly Wolf[] {
     return this.wolves;
   }
+
+  debugTeleport(client: string, x: number, z: number): void {
+    const p = this.players.get(client);
+    if (!p || !Number.isFinite(x) || !Number.isFinite(z)) return;
+    [p.x, p.z] = this.collision.resolve(x, z, PLAYER_RADIUS);
+  }
 }
 
-function clampUnit(v: number): number {
-  return Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0;
+function entityState(e: { id: number; x: number; z: number; yaw: number; anim: EntityAnim; animStart: number; hp: number }, kind: EntityState['kind'], maxHp: number): EntityState {
+  return {
+    id: e.id, kind, x: quantize(e.x), z: quantize(e.z), yaw: quantizeAngle(e.yaw), anim: e.anim, animStart: e.animStart,
+    hp: Math.ceil(e.hp), maxHp,
+  };
+}
+
+function selfState(p: Player): SelfState {
+  return { swing: p.swing && { ...p.swing }, stun: p.stun, dead: p.dead };
+}
+
+const APPEARANCE_KEYS = ['name', 'race', 'gender', 'skin', 'hairStyle', 'hairColor', 'plumeColor', 'eyeColor', 'clothColor'] as const;
+
+/** Copies the known appearance fields (all strings) or returns null: nothing else reaches other players. */
+function readAppearance(v: unknown): Appearance | null {
+  if (!v || typeof v !== 'object') return null;
+  const src = v as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const k of APPEARANCE_KEYS) {
+    const value = src[k];
+    if (typeof value !== 'string') return null;
+    out[k] = value;
+  }
+  return out as unknown as Appearance;
+}
+
+function clampUnit(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0;
 }
 
 export function angleDiff(a: number, b: number): number {
-  let d = a - b;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  return d;
+  return wrapAngle(a - b);
 }

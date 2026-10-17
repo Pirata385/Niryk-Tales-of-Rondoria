@@ -5,6 +5,13 @@ import { IsoCamera } from './IsoCamera';
 export const LAYER_OUTLINE = 1; // 3D objects that get ink lines (characters, creatures, buildings)
 export const LAYER_XRAY = 2; // silhouette when hidden behind scenery: the local player (lilac)
 export const LAYER_XRAY_HOSTILE = 3; // same for hostile creatures (red)
+/**
+ * Markers drawn after the composite, straight into the low-res image: exact sRGB colors (no
+ * grade, vignette, ink or x-ray on them) and no depth buffer, so they sit above canopies and
+ * houses. Objects must be on this layer ONLY (`layers.set(LAYER_OVERLAY)`), use materials with
+ * depthTest/depthWrite off and output sRGB. Their shaders may read `xrayDepth` (creatures).
+ */
+export const LAYER_OVERLAY = 4;
 
 /**
  * Internal pixels along the SHORT side of the screen. The integer upscale factor is chosen from
@@ -25,7 +32,8 @@ const XRAY_HOSTILE = new THREE.Color('#ff7a6a');
  *  1. beauty pass of the whole scene into a small target (nearest, no AA),
  *  2. normal+depth pass of LAYER_OUTLINE objects, 3. flat-color pass of the x-ray layers,
  *  4. composite at low res: ink outlines (silhouettes + creases), x-ray silhouette, color grade,
- *  5. integer nearest upscale to the canvas, shifted by the camera's sub-texel remainder.
+ *  5. LAYER_OVERLAY markers drawn over the composite (health bars, warning rings),
+ *  6. integer nearest upscale to the canvas, shifted by the camera's sub-texel remainder.
  */
 export class PixelPipeline {
   readonly renderer: THREE.WebGLRenderer;
@@ -99,6 +107,15 @@ export class PixelPipeline {
     this.quadScene.add(this.quad);
   }
 
+  /**
+   * Depth of the x-ray pass (the local player and living hostiles), same size and camera as the
+   * low-res image: overlay shaders compare against it to hide what a creature stands on. Holds
+   * window-space depth (gl_FragCoord.z); 1.0 where no creature was drawn.
+   */
+  get xrayDepth(): THREE.DepthTexture {
+    return this.xray.depthTexture!;
+  }
+
   /** Call on window resize (css size + devicePixelRatio). */
   resize(cssWidth: number, cssHeight: number, dpr: number): void {
     const ratio = Math.min(dpr, 3);
@@ -126,6 +143,7 @@ export class PixelPipeline {
 
     // 1. beauty
     cam.layers.enableAll();
+    cam.layers.disable(LAYER_OVERLAY);
     r.setRenderTarget(this.beauty);
     r.render(scene, cam);
 
@@ -165,7 +183,21 @@ export class PixelPipeline {
     r.setRenderTarget(this.composite);
     r.render(this.quadScene, this.quadCam);
 
-    // 5. upscale to canvas
+    // 5. overlay markers on top of the composite (matrices are already up to date: no re-update)
+    const autoMatrix = scene.matrixWorldAutoUpdate;
+    scene.matrixWorldAutoUpdate = false;
+    scene.background = null;
+    r.shadowMap.autoUpdate = false;
+    r.autoClear = false;
+    cam.layers.set(LAYER_OVERLAY);
+    r.render(scene, cam);
+    cam.layers.enableAll();
+    r.autoClear = true;
+    r.shadowMap.autoUpdate = true;
+    scene.background = bg;
+    scene.matrixWorldAutoUpdate = autoMatrix;
+
+    // 6. upscale to canvas
     this.upscaleMat.uniforms.shift.value.set(MARGIN + iso.subTexel.x, MARGIN + iso.subTexel.y);
     this.quad.material = this.upscaleMat;
     r.setRenderTarget(null);
@@ -174,7 +206,7 @@ export class PixelPipeline {
 
   /** Projects a world point to css pixels on the canvas (for DOM overlays like damage numbers). */
   worldToCss(p: THREE.Vector3, iso: IsoCamera, cssW: number, cssH: number, out = new THREE.Vector2()): THREE.Vector2 {
-    const v = p.clone().project(iso.camera);
+    const v = _ndc.copy(p).project(iso.camera);
     const tw = this.width + MARGIN * 2;
     const th = this.height + MARGIN * 2;
     const tx = ((v.x + 1) / 2) * tw - MARGIN - iso.subTexel.x;
@@ -192,6 +224,8 @@ export class PixelPipeline {
     return out.set((tx / tw) * 2 - 1, (ty / th) * 2 - 1);
   }
 }
+
+const _ndc = new THREE.Vector3();
 
 function makeTarget(depth: boolean): THREE.WebGLRenderTarget {
   const t = new THREE.WebGLRenderTarget(4, 4, {
