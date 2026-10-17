@@ -5,6 +5,8 @@ export const SUN_DIRECTION = new THREE.Vector3(-1, 1.35, -0.25).normalize();
 /** Linear multiplier for painted sprites standing in the shadow of 3D objects (≈ ground shadow). */
 export const SPRITE_SHADE = new THREE.Color(0.5, 0.56, 0.72);
 
+const _snapped = new THREE.Vector3(); // follow() scratch
+
 /** Darkens the tint of sprites whose base is in the sun shadow of the given static meshes. */
 export function shadeSpritesUnder(
   placements: { x: number; y: number; z: number; tint?: THREE.ColorRepresentation; frame: string }[],
@@ -58,13 +60,18 @@ export class Lighting {
   follow(center: THREE.Vector3): void {
     const cam = this.sun.shadow.camera;
     const texel = (cam.right - cam.left) / this.sun.shadow.mapSize.x;
-    const c = new THREE.Vector3(
-      Math.round(center.x / texel) * texel,
-      0,
-      Math.round(center.z / texel) * texel,
-    );
+    const c = _snapped.set(Math.round(center.x / texel) * texel, 0, Math.round(center.z / texel) * texel);
     this.sunTarget.position.copy(c);
     this.sun.position.copy(c).addScaledVector(SUN_DIRECTION, 60);
     this.sunTarget.updateMatrixWorld();
+  }
+
+  /** Removes the lights from the scene and frees the sun's shadow map render target. */
+  dispose(): void {
+    this.sun.removeFromParent();
+    this.sunTarget.removeFromParent();
+    this.hemi.removeFromParent();
+    this.sun.dispose();
+    this.hemi.dispose();
   }
 }

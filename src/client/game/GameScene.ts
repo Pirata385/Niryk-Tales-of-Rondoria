@@ -113,7 +113,9 @@ async function enterWorld(
   scene.background = new THREE.Color('#1b1424');
   const iso = new IsoCamera();
   const lighting = new Lighting(scene, 24);
+  teardown.push(() => lighting.dispose());
   const worldView = await WorldView.create(world);
+  teardown.push(() => worldView.dispose());
   scene.add(worldView.group);
 
   // nothing below awaits: from here on the HUD's callbacks and the frame loop own the scene

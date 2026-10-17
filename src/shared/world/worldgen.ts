@@ -404,12 +404,12 @@ export function generateWorld(seed: number): WorldData {
   // (the camera looks from +X+Z)
   const beds = structures.filter((s) => s.type === 'flower_bed');
   const bedRng = new Rng(hashSeed(seed, 'beds'));
+  const bedFlipRng = new Rng(hashSeed(seed, 'bed-flips')); // own stream: the beds' contents stay put
   for (const b of beds) {
     const plant = (frame: string, a: number, r: number, scale: number) => {
       const x = b.x + Math.cos(a) * r;
       const z = b.z + Math.sin(a) * r;
-      // never mirrored: Billboards mirrors with a negative scale, which culls the quad
-      nature.placements.push({ frame, x, y: height(x, z), z, scale, flip: false, tint: [1, 1, 1] });
+      nature.placements.push({ frame, x, y: height(x, z), z, scale, flip: bedFlipRng.chance(0.5), tint: [1, 1, 1] });
     };
     const front = Math.PI / 4;
     const [carpet, size] = bedRng.pick([['decal_flowers_5', 0.8], ['decal_flowers_6', 0.68], ['decal_flowers_4', 1.0], ['decal_flowers_2', 0.62]] as const);

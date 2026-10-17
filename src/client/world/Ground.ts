@@ -29,8 +29,10 @@ const TILE_METERS = 8;
 /**
  * Terrain mesh with a painterly splat shader: hard, noise-broken boundaries between painted
  * tileable textures (no blurry blends), big low-frequency color patches, toon-lit with shadows.
+ * Dispose its geometry and material when done: the material frees its splat texture with it (the
+ * painted textures passed in are shared and stay).
  */
-export function createGround(tex: GroundTextures, opts: GroundOptions): THREE.Mesh {
+export function createGround(tex: GroundTextures, opts: GroundOptions): THREE.Mesh<THREE.PlaneGeometry, THREE.MeshToonMaterial> {
   const segs = Math.round(opts.size / opts.step);
   const geo = new THREE.PlaneGeometry(opts.size, opts.size, segs, segs);
   geo.rotateX(-Math.PI / 2);
@@ -122,6 +124,7 @@ export function createGround(tex: GroundTextures, opts: GroundOptions): THREE.Me
       );
   };
   mat.customProgramCacheKey = () => 'ground-splat';
+  mat.addEventListener('dispose', () => splat.dispose()); // the splat belongs to this ground only
 
   const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true;

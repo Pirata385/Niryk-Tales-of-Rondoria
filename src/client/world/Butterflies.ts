@@ -6,6 +6,11 @@ const COLORS = ['white', 'yellow', 'blue', 'orange'];
 const COUNT = 18;
 const RANGE = 13; // butterflies farther than this from the player fly off and reappear nearer
 
+// per-frame scratch (update allocates nothing)
+const _rot = new THREE.Matrix4().makeRotationY(THREE.MathUtils.degToRad(CAMERA_YAW_DEG));
+const _m = new THREE.Matrix4();
+const _s = new THREE.Matrix4();
+
 interface Fly {
   home: THREE.Vector2;
   color: string;
@@ -78,9 +83,6 @@ export class Butterflies {
     if (this.flies.length === 0) for (let i = 0; i < COUNT; i++) this.flies.push(this.spawn(null, cx, cz, true));
     const [AW, AH] = this.atlas.size;
     const ppm = this.atlas.pxPerMeter || PX_PER_METER;
-    const rot = new THREE.Matrix4().makeRotationY(THREE.MathUtils.degToRad(CAMERA_YAW_DEG));
-    const m = new THREE.Matrix4();
-    const s = new THREE.Matrix4();
     this.flies.forEach((f, i) => {
       if (Math.hypot(f.home.x - cx, f.home.y - cz) > RANGE) this.spawn(f, cx, cz, false);
       const t = this.time * f.speed + f.phase;
@@ -91,13 +93,23 @@ export class Butterflies {
       const open = Math.sin(this.time * f.flap + f.phase) > -0.2;
       const frame = this.atlas.frames[`butterfly_${f.color}_${open ? 0 : 1}`];
       const [rx, ry, rw, rh] = frame.rect;
-      this.rects.setXYZW(i, rx / AW, 1 - (ry + rh) / AH, rw / AW, rh / AH);
-      const flip = Math.cos(t) < 0 ? -1 : 1; // face the direction of travel
-      s.makeScale((flip * rw) / ppm, (rh / ppm) * BILLBOARD_STRETCH, 1);
-      m.makeTranslation(x, y, z).multiply(rot).multiply(s);
-      this.mesh.setMatrixAt(i, m);
+      // face the direction of travel: mirrored through the uv rect (a negative instance scale
+      // would reverse the winding and cull the single-sided quad)
+      const flip = Math.cos(t) < 0;
+      this.rects.setXYZW(i, (flip ? rx + rw : rx) / AW, 1 - (ry + rh) / AH, (flip ? -rw : rw) / AW, rh / AH);
+      _s.makeScale(rw / ppm, (rh / ppm) * BILLBOARD_STRETCH, 1);
+      _m.makeTranslation(x, y, z).multiply(_rot).multiply(_s);
+      this.mesh.setMatrixAt(i, _m);
     });
     this.rects.needsUpdate = true;
     this.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Frees the geometry, instance buffers and material (the atlas texture is shared). */
+  dispose(): void {
+    this.mesh.geometry.dispose();
+    (this.mesh.material as THREE.Material).dispose();
+    this.mesh.dispose();
+    this.mesh.removeFromParent();
   }
 }

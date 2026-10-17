@@ -56,6 +56,9 @@ const FLOWER_DRIFTS = ['decal_flowers_11', 'decal_flowers_12', 'decal_flowers_13
  * (oak woods and pine stands), bushes on the wood edges, rock clusters, undergrowth, grass tufts
  * clustered at bases and path edges, flower patches in the meadows and leaf litter under oaks.
  */
+/** Sprite kinds with painted directional light (never mirrored). */
+const LIT_KINDS = new Set(['tree', 'bush', 'rock', 'prop']);
+
 export function placeNature(p: NatureParams): NatureResult {
   const rng = new Rng(hashSeed(p.seed, 'nature'));
   const forest = new ValueNoise(hashSeed(p.seed, 'forest'));
@@ -80,7 +83,10 @@ export function placeNature(p: NatureParams): NatureResult {
   const push = (frame: string, x: number, z: number, scale = 1, extra: Partial<NaturePlacement> = {}) => {
     if (!has(frame)) return;
     const kindOf = p.frames[frame].kind;
-    out.push({ frame, x, y: p.height(x, z), z, scale, flip: rng.chance(0.5), tint: tint(kindOf === 'tree' || kindOf === 'bush' ? 0.08 : 0.04), ...extra });
+    // trees, bushes, rocks and props are painted lit from the upper left (like the 3D sun): mirroring
+    // them would light them from the right. The coin is still drawn so placements stay the same.
+    const flip = rng.chance(0.5) && !LIT_KINDS.has(kindOf ?? '');
+    out.push({ frame, x, y: p.height(x, z), z, scale, flip, tint: tint(kindOf === 'tree' || kindOf === 'bush' ? 0.08 : 0.04), ...extra });
     const col = (p.frames[frame].collider ?? 0) * scale;
     if (col > 0) colliders.push({ x, z, r: col });
   };

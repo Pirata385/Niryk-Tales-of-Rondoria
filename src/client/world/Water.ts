@@ -39,10 +39,11 @@ void main() {
 export class Water {
   readonly group = new THREE.Group();
   private readonly time = { value: 0 };
+  private readonly material: THREE.ShaderMaterial;
 
   constructor(ponds: Pond[], pondDist: (x: number, z: number) => number, noise: THREE.Texture) {
     noise.wrapS = noise.wrapT = THREE.RepeatWrapping;
-    const mat = new THREE.ShaderMaterial({
+    const mat = (this.material = new THREE.ShaderMaterial({
       vertexShader: VS,
       fragmentShader: FS,
       uniforms: {
@@ -53,7 +54,7 @@ export class Water {
         cRim: { value: new THREE.Color('#8cc6e2') },
         cGlint: { value: new THREE.Color('#d8eeff') },
       },
-    });
+    }));
     for (const p of ponds) {
       const size = p.r * 3.2;
       const seg = Math.ceil(size / 0.35);
@@ -71,5 +72,12 @@ export class Water {
 
   update(dt: number): void {
     this.time.value += dt;
+  }
+
+  /** Frees the pond meshes and their material (the noise texture is shared). */
+  dispose(): void {
+    for (const o of this.group.children) (o as THREE.Mesh).geometry.dispose();
+    this.material.dispose();
+    this.group.removeFromParent();
   }
 }

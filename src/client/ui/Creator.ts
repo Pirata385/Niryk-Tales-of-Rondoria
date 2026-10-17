@@ -73,6 +73,7 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
   let viewKey = '';
   let yaw = 0.35;
   let building = Promise.resolve();
+  let disposed = false;
 
   async function rebuildView(): Promise<void> {
     const key = `${app.race}_${app.gender}`;
@@ -83,7 +84,11 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
     viewKey = key;
     const v = await CharacterView.create(app, { xray: 'player' });
     await equip(v, 'weapon', 'sword_iron');
-    if (view) scene.remove(view.root);
+    if (disposed) {
+      v.dispose(); // the creator closed while the model loaded
+      return;
+    }
+    view?.dispose(); // frees its materials and skeleton (the sword's too); models stay cached
     view = v;
     scene.add(v.root);
     v.play(previewAnim, 0);
@@ -310,7 +315,7 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
   };
   const clock = new THREE.Clock();
   let raf = 0;
-  let disposed = false;
+  lighting.follow(new THREE.Vector3(0, 0, 0)); // the preview never moves: once is enough
   const frame = () => {
     if (disposed) return;
     const dt = Math.min(clock.getDelta(), 0.1);
@@ -334,7 +339,6 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
       const freeCenter = (panelRect.right + innerWidth) / 2;
       iso.target.addScaledVector(iso.right, (innerWidth / 2 - freeCenter) / cssPerMeter);
     }
-    lighting.follow(new THREE.Vector3(0, 0, 0));
     ctx.pipeline.render(scene, iso);
     raf = requestAnimationFrame(frame);
   };
@@ -349,5 +353,10 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
     removeEventListener('pointerup', up);
     listResize.disconnect();
     root.remove();
+    view?.dispose();
+    view = null;
+    ground.geometry.dispose();
+    ground.material.dispose(); // and its splat texture; the painted textures are shared
+    lighting.dispose();
   };
 }

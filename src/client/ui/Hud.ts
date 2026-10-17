@@ -29,7 +29,8 @@ export class Hud {
   private modal: HTMLElement | null = null;
   private death: HTMLElement | null = null;
   private shownName: string | null = null;
-  private shownHp: string | null = null;
+  private shownHp = NaN;
+  private shownMax = NaN;
   private equipment: Equipment = { weapon: null, armor: null };
   private items: string[] = [];
 
@@ -79,11 +80,13 @@ export class Hud {
 
   /** Called every frame: touches the DOM only when the shown name or numbers change. */
   setHealth(name: string, hp: number, max: number): void {
-    const label = `${Math.ceil(hp)} / ${max}`;
-    if (name === this.shownName && label === this.shownHp) return;
+    const shown = Math.ceil(hp);
     if (name !== this.shownName) this.nameEl.textContent = this.shownName = name;
-    this.hpFill.style.width = `calc(${Math.max(0, Math.ceil(hp) / max) * 100}% - 4px)`;
-    this.hpLabel.textContent = this.shownHp = label;
+    if (shown === this.shownHp && max === this.shownMax) return; // no string built per frame
+    this.shownHp = shown;
+    this.shownMax = max;
+    this.hpFill.style.width = `calc(${Math.max(0, shown / max) * 100}% - 4px)`;
+    this.hpLabel.textContent = `${shown} / ${max}`;
   }
 
   setInventory(equipment: Equipment, items: string[]): void {

@@ -4,7 +4,7 @@ import { ITEMS, type EquipSlot } from '@shared/items';
 import { loadModel } from '../core/assets';
 import { LAYER_OUTLINE, LAYER_XRAY } from '../render/PixelPipeline';
 import { toonFromGltf } from '../render/toon';
-import type { CharacterView } from './CharacterView';
+import { disposeInstance, type CharacterView } from './CharacterView';
 
 /** Attached equipment objects per character (so they can be removed on unequip). */
 const attached = new WeakMap<CharacterView, Map<EquipSlot, THREE.Object3D>>();
@@ -38,8 +38,13 @@ export async function equip(view: CharacterView, slot: EquipSlot, itemId: string
   const id = ++requestId;
   reqs.set(slot, id);
   const stale = () => reqs.get(slot) !== id;
-  map.get(slot)?.removeFromParent();
-  map.delete(slot);
+  const old = map.get(slot);
+  if (old) {
+    old.removeFromParent();
+    // its own toon materials (and the armor's re-bound skeletons); geometry and maps stay cached
+    disposeInstance(old);
+    map.delete(slot);
+  }
   if (!itemId) return;
   try {
     const obj = await loadEquipment(view, slot, itemId);

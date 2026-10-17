@@ -21,6 +21,8 @@ export class WorldView {
   billboards!: Billboards;
   butterflies!: Butterflies;
   water!: Water;
+  /** Meshes whose geometry and material this view created (ground, merged static batches). */
+  private readonly owned: THREE.Mesh[] = [];
 
   private constructor(readonly world: WorldData) {}
 
@@ -37,6 +39,7 @@ export class WorldView {
     );
     const ground = createGround({ grassA, grassB, dirt, cobble, noise }, { size: w.size, step: 2, height: w.height, splat: w.splat });
     this.group.add(ground);
+    this.owned.push(ground);
     this.water = new Water(w.ponds, w.pondDist, noise);
     this.group.add(this.water.group);
 
@@ -47,7 +50,10 @@ export class WorldView {
     const cosP = Math.cos(THREE.MathUtils.degToRad(CAMERA_PITCH_DEG));
     const near = (p: SpritePlacement) => Math.hypot(p.x, p.z) < 45; // only the village casts on sprites
     shadeSpritesUnder(placements.filter(near), structures, (f) => atlas.frames[f].rect[3] / atlas.pxPerMeter / cosP);
-    for (const m of staticBatch(structures)) this.group.add(m);
+    for (const m of staticBatch(structures)) {
+      this.group.add(m);
+      this.owned.push(m); // its own merged geometry and cloned material; texture maps are shared
+    }
     this.billboards = new Billboards(atlas, texture, placements);
     this.group.add(this.billboards.group);
     // butterflies over grass and roads, never over the paved plaza
@@ -84,6 +90,22 @@ export class WorldView {
     this.billboards.update(dt);
     this.butterflies.update(dt, x, z);
     this.water.update(dt);
+  }
+
+  /**
+   * Frees the GPU resources this view created. Textures and the models' own geometries come from
+   * the shared asset cache (loadTexture / loadModel) and stay for the next entry into the world.
+   */
+  dispose(): void {
+    this.group.removeFromParent();
+    for (const m of this.owned) {
+      m.geometry.dispose();
+      (m.material as THREE.Material).dispose();
+    }
+    this.owned.length = 0;
+    this.water.dispose();
+    this.billboards.dispose();
+    this.butterflies.dispose();
   }
 }
 

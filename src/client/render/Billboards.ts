@@ -31,13 +31,16 @@ export interface SpritePlacement {
   z: number;
   /** Uniform scale (1 = painted size). */
   scale?: number;
-  /** Mirror horizontally. */
+  /** Mirror horizontally (through the uv rect: the quad keeps its winding, see buildMesh). */
   flip?: boolean;
   tint?: THREE.ColorRepresentation;
 }
 
 const YAW = THREE.MathUtils.degToRad(CAMERA_YAW_DEG);
 const SIN_PITCH = Math.sin(THREE.MathUtils.degToRad(CAMERA_PITCH_DEG));
+/** Screen-right direction on the ground (world XZ). */
+const RIGHT_X = Math.cos(YAW);
+const RIGHT_Z = -Math.sin(YAW);
 
 /**
  * Upright painted sprites (trees, rocks, bushes...) as one InstancedMesh, plus their ground
@@ -55,7 +58,9 @@ export class Billboards {
   /** Upright instances that may fade when something stands behind them (trees, bushes). */
   private readonly faders: { index: number; x: number; z: number; r: number; h: number }[] = [];
   private fade!: THREE.InstancedBufferAttribute;
+  /** Instances dithered now, and the scratch set setFocus fills before swapping the two. */
   private faded = new Set<number>();
+  private nextFaded = new Set<number>();
 
   constructor(readonly atlas: SpriteAtlas, texture: THREE.Texture, placements: SpritePlacement[]) {
     texture.magFilter = THREE.NearestFilter;
@@ -102,7 +107,7 @@ export class Billboards {
     this.decals = this.buildMesh(placements.filter(isDecal), decalMat, true);
     this.decals.renderOrder = -2;
     this.shadows = this.buildMesh(
-      withShadow.map((p) => ({ ...p, frame: atlas.frames[p.frame].shadow! })),
+      withShadow.map((p) => this.castShadow(p)),
       shadowMat,
       true,
     );
@@ -119,7 +124,8 @@ export class Billboards {
    * a tree in front of the point (closer to the camera) whose painted crown covers it on screen.
    */
   setFocus(points: { x: number; z: number }[]): void {
-    const next = new Set<number>();
+    const next = this.nextFaded;
+    next.clear();
     for (const p of points) {
       for (const t of this.faders) {
         const dx = p.x - t.x;
@@ -136,8 +142,36 @@ export class Billboards {
     let dirty = false;
     for (const i of this.faded) if (!next.has(i)) (this.fade.setX(i, 0), (dirty = true));
     for (const i of next) if (!this.faded.has(i)) (this.fade.setX(i, 1), (dirty = true));
+    this.nextFaded = this.faded;
     this.faded = next;
     if (dirty) this.fade.needsUpdate = true;
+  }
+
+  /** Frees the meshes' geometries, instance buffers and materials (the atlas texture is shared). */
+  dispose(): void {
+    for (const mesh of [this.sprites, this.decals, this.shadows]) {
+      mesh.geometry.dispose();
+      (mesh.material as THREE.Material).dispose();
+      mesh.dispose(); // instanceMatrix / instanceColor buffers
+    }
+    this.group.removeFromParent();
+  }
+
+  /**
+   * The ground shadow of an upright sprite. Painted shadows are cast by the fixed sun (down-right on
+   * screen), so a mirrored sprite does not mirror its shadow (that would cast it down-left, against
+   * the 3D shadows); the shadow moves with the mirrored crown instead: twice the crown's offset
+   * from the anchor (rect center minus anchor, along screen right).
+   */
+  private castShadow(p: SpritePlacement): SpritePlacement {
+    const f = this.atlas.frames[p.frame];
+    const shadow = { ...p, frame: f.shadow!, flip: false };
+    if (p.flip) {
+      const shift = (-2 * (f.rect[2] / 2 - f.anchor[0]) * (p.scale ?? 1)) / (this.atlas.pxPerMeter || PX_PER_METER);
+      shadow.x += shift * RIGHT_X;
+      shadow.z += shift * RIGHT_Z;
+    }
+    return shadow;
   }
 
   private buildMesh(list: SpritePlacement[], material: THREE.Material, ground: boolean): THREE.InstancedMesh {
@@ -165,21 +199,28 @@ export class Billboards {
       const W = (w / ppm) * s;
       // upright quads stretch vertically (pitch); ground decals stretch along screen-up (1/sin)
       const H = (h / ppm) * s * (ground ? 1 / SIN_PITCH : BILLBOARD_STRETCH);
+      // Mirrored sprites flip the uv rect, never the scale: three.js picks the front face from
+      // the object matrix only, so a negative per-instance scale reverses the winding and the
+      // single-sided quad is culled. The anchor column mirrors with the image.
       let ua = f.anchor[0] / w;
       if (p.flip) ua = 1 - ua;
       const va = 1 - f.anchor[1] / h;
       if (ground) {
         // plane lies in XZ after rotateX(-90): local +Y became -Z (screen-up direction after yaw)
         off.makeTranslation((0.5 - ua) * W, 0, -(0.5 - va) * H);
-        scl.makeScale(p.flip ? -W : W, 1, H);
+        scl.makeScale(W, 1, H);
       } else {
         off.makeTranslation((0.5 - ua) * W, (0.5 - va) * H, 0);
-        scl.makeScale(p.flip ? -W : W, H, 1);
+        scl.makeScale(W, H, 1);
       }
       pos.makeTranslation(p.x, p.y, p.z);
       m.copy(pos).multiply(rot).multiply(off).multiply(scl);
       mesh.setMatrixAt(i, m);
-      rects.set([x / AW, 1 - (y + h) / AH, w / AW, h / AH], i * 4);
+      // flipped: start at the right edge with a negative width (vMapUv = rect.xy + uv * rect.zw)
+      rects[i * 4] = (p.flip ? x + w : x) / AW;
+      rects[i * 4 + 1] = 1 - (y + h) / AH;
+      rects[i * 4 + 2] = (p.flip ? -w : w) / AW;
+      rects[i * 4 + 3] = h / AH;
       sway.set([ground ? 0 : (f.sway ?? 0) * s, (p.x * 0.37 + p.z * 0.61) % 6.283], i * 2);
       mesh.setColorAt(i, color.set(p.tint ?? 0xffffff));
     });
