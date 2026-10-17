@@ -9,7 +9,9 @@ import {
 } from '../shared/constants';
 import { ITEMS, STARTING_EQUIPMENT, STARTING_INVENTORY, type EquipSlot } from '../shared/items';
 import { Rng } from '../shared/math/random';
-import { stepPlayer, turnToward, wrapAngle, type AttackName, type PlayerInput, type PlayerMotion } from '../shared/movement';
+import {
+  sanitizeInput, stepPlayer, turnToward, wrapAngle, type AttackName, type PlayerInput, type PlayerMotion,
+} from '../shared/movement';
 import {
   quantize, quantizeAngle, type ClientMsg, type EntityAnim, type EntityState, type Equipment, type GameEvent, type SelfState,
   type ServerMsg,
@@ -177,15 +179,8 @@ export class GameServer {
     const seq = msg.seq;
     if (!Number.isSafeInteger(seq) || seq <= p.received) return; // stale, duplicate or malformed
     p.received = seq;
-    let mx = clampUnit(msg.mx);
-    let mz = clampUnit(msg.mz);
-    const len = Math.hypot(mx, mz);
-    if (len > 1) {
-      mx /= len;
-      mz /= len;
-    }
-    const aim = Number.isFinite(msg.aim) ? wrapAngle(msg.aim as number) : null;
-    p.inputs.push({ seq, mx, mz, run: msg.run === true, attack: msg.attack === true, aim });
+    // the same reading the client predicts with (shared/movement.ts)
+    p.inputs.push(sanitizeInput<QueuedInput>(msg, { seq, mx: 0, mz: 0, run: false, attack: false, aim: null }));
     if (p.inputs.length > INPUT_QUEUE_MAX) p.inputs.shift(); // a burst beyond the cap drops the oldest
   }
 
@@ -607,10 +602,6 @@ function readAppearance(v: unknown): Appearance | null {
     out[k] = value;
   }
   return out as unknown as Appearance;
-}
-
-function clampUnit(v: unknown): number {
-  return typeof v === 'number' && Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0;
 }
 
 export function angleDiff(a: number, b: number): number {

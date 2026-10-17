@@ -28,6 +28,8 @@ export class Hud {
   private readonly hint = el('div', 'hint panel');
   private modal: HTMLElement | null = null;
   private death: HTMLElement | null = null;
+  private shownName: string | null = null;
+  private shownHp: string | null = null;
   private equipment: Equipment = { weapon: null, armor: null };
   private items: string[] = [];
 
@@ -75,10 +77,13 @@ export class Hud {
     this.hint.style.opacity = '0';
   }
 
+  /** Called every frame: touches the DOM only when the shown name or numbers change. */
   setHealth(name: string, hp: number, max: number): void {
-    this.nameEl.textContent = name;
-    this.hpFill.style.width = `calc(${Math.max(0, hp / max) * 100}% - 4px)`;
-    this.hpLabel.textContent = `${Math.ceil(hp)} / ${max}`;
+    const label = `${Math.ceil(hp)} / ${max}`;
+    if (name === this.shownName && label === this.shownHp) return;
+    if (name !== this.shownName) this.nameEl.textContent = this.shownName = name;
+    this.hpFill.style.width = `calc(${Math.max(0, Math.ceil(hp) / max) * 100}% - 4px)`;
+    this.hpLabel.textContent = this.shownHp = label;
   }
 
   setInventory(equipment: Equipment, items: string[]): void {

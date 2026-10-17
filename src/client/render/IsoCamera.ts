@@ -24,6 +24,8 @@ export class IsoCamera {
   readonly right: THREE.Vector3;
   readonly up: THREE.Vector3;
   readonly back: THREE.Vector3;
+  /** Ground direction (XZ, unit) that appears as "up" on screen. */
+  readonly groundUp: THREE.Vector3;
   /** Sub-texel remainder of the snap, in internal pixels (x right, y up). */
   readonly subTexel = new THREE.Vector2();
   zoom = 1;
@@ -40,6 +42,7 @@ export class IsoCamera {
     ).normalize();
     this.right = new THREE.Vector3(0, 1, 0).cross(this.back).normalize();
     this.up = this.back.clone().cross(this.right).normalize();
+    this.groundUp = new THREE.Vector3(-this.back.x, 0, -this.back.z).normalize();
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, CAMERA_DISTANCE * 2.5);
     this.camera.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(this.right, this.up, this.back));
   }
@@ -96,10 +99,5 @@ export class IsoCamera {
     const gx = this.right.x * dx - this.groundUp.x * dy;
     const gz = this.right.z * dx - this.groundUp.z * dy;
     return out.set(gx, gz);
-  }
-
-  /** Ground direction that appears as "up" on screen. */
-  get groundUp(): THREE.Vector3 {
-    return new THREE.Vector3(-this.back.x, 0, -this.back.z).normalize();
   }
 }

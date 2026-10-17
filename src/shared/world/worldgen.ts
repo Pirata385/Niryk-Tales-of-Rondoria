@@ -5,20 +5,28 @@ import { Rng, hashSeed } from '../math/random';
 import type { Collider } from './collision';
 import { placeNature, type NatureFrameInfo, type NatureResult } from './nature';
 
-/** 3D structures of the village (models: assets/models/<type>.glb, front faces +Z). */
-export const STRUCTURES: Record<string, { w: number; d: number; round?: boolean; solid?: boolean }> = {
+/**
+ * Structures of the village (models: assets/models/<type>.glb, front faces +Z), with the collider
+ * footprint in meters. `painted` ones have no model: a flower bed is a gap in the plaza's paving
+ * (see `splat`) planted with nature sprites.
+ */
+export const STRUCTURES: Record<string, { w: number; d: number; round?: boolean; painted?: boolean }> = {
   house_a: { w: 6.2, d: 5.2 },
   house_b: { w: 7.6, d: 6.2 },
   house_c: { w: 5.2, d: 4.6 },
   well: { w: 2.4, d: 2.4, round: true },
-  stall: { w: 3.2, d: 2.0 },
+  stall: { w: 3.1, d: 1.9 },
   notice: { w: 1.6, d: 0.45 },
   lamp: { w: 0.4, d: 0.4, round: true },
-  crates: { w: 1.5, d: 1.0 },
-  barrels: { w: 1.2, d: 0.9 },
+  crates: { w: 1.6, d: 0.9 },
+  barrels: { w: 1.45, d: 0.9 },
   fence: { w: 3.0, d: 0.25 },
   bench: { w: 1.6, d: 0.55 },
+  flower_bed: { w: 1.5, d: 1.5, round: true, painted: true },
 };
+
+/** Radius of a flower bed's planted soil; the curb ring of the paving runs just outside it. */
+const BED_RADIUS = 0.85;
 
 export interface Structure {
   type: string;
@@ -73,6 +81,60 @@ function distToSegment(px: number, pz: number, ax: number, az: number, bx: numbe
 function distToPolyline(px: number, pz: number, line: [number, number][]): number {
   let d = Infinity;
   for (let i = 0; i < line.length - 1; i++) d = Math.min(d, distToSegment(px, pz, line[i][0], line[i][1], line[i + 1][0], line[i + 1][1]));
+  return d;
+}
+
+type Pt = [number, number];
+
+/** Collider outline of a structure on the ground (x, z): a box's corners, a 12-gon around a circle. */
+export function footprint(s: Structure): Pt[] {
+  const def = STRUCTURES[s.type];
+  if (def.round) {
+    const r = def.w / 2 / Math.cos(Math.PI / 12);
+    return Array.from({ length: 12 }, (_, k): Pt => [s.x + Math.cos((k * Math.PI) / 6) * r, s.z + Math.sin((k * Math.PI) / 6) * r]);
+  }
+  const c = Math.cos(s.rot);
+  const n = Math.sin(s.rot);
+  const corners: Pt[] = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+  // same convention as three.js rotation.y (and the box colliders)
+  return corners.map(([sx, sz]): Pt => [s.x + (sx * def.w * c + sz * def.d * n) / 2, s.z + (-sx * def.w * n + sz * def.d * c) / 2]);
+}
+
+const cross = (o: Pt, a: Pt, b: Pt) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+
+function insideConvex(poly: Pt[], p: Pt): boolean {
+  if (poly.length < 3) return false;
+  let sign = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const c = cross(poly[i], poly[(i + 1) % poly.length], p);
+    if (c === 0) continue;
+    if (sign === 0) sign = Math.sign(c);
+    else if (Math.sign(c) !== sign) return false;
+  }
+  return true;
+}
+
+function segmentsDist(a: Pt, b: Pt, c: Pt, d: Pt): number {
+  const d1 = cross(c, d, a);
+  const d2 = cross(c, d, b);
+  const d3 = cross(a, b, c);
+  const d4 = cross(a, b, d);
+  if (d1 * d2 < 0 && d3 * d4 < 0) return 0;
+  return Math.min(
+    distToSegment(a[0], a[1], c[0], c[1], d[0], d[1]),
+    distToSegment(b[0], b[1], c[0], c[1], d[0], d[1]),
+    distToSegment(c[0], c[1], a[0], a[1], b[0], b[1]),
+    distToSegment(d[0], d[1], a[0], a[1], b[0], b[1]),
+  );
+}
+
+/** Gap (m) between two convex outlines (a 2-point outline is a segment); 0 when they overlap. */
+export function outlineGap(a: Pt[], b: Pt[]): number {
+  if (insideConvex(a, b[0]) || insideConvex(b, a[0])) return 0;
+  let d = Infinity;
+  for (let i = 0; i < a.length; i++) {
+    for (let j = 0; j < b.length; j++) d = Math.min(d, segmentsDist(a[i], a[(i + 1) % a.length], b[j], b[(j + 1) % b.length]));
+  }
   return d;
 }
 
@@ -170,7 +232,8 @@ export function generateWorld(seed: number): WorldData {
     structures.push({ type, x, z, rot: facing(x, z) + rng.range(-0.12, 0.12) });
     hi++;
   }
-  structures.push({ type: 'well', x: plaza.x, z: plaza.z, rot: 0.3 });
+  const well: Structure = { type: 'well', x: plaza.x, z: plaza.z, rot: 0.3 };
+  structures.push(well);
   const free = (x: number, z: number, r: number) =>
     roadDist(x, z) > ROAD_HALF + r && structures.every((o) => Math.hypot(o.x - x, o.z - z) > r + Math.max(STRUCTURES[o.type].w, STRUCTURES[o.type].d) / 2);
   const around = (type: string, ang: number, r: number, rotOffset = 0) => {
@@ -184,11 +247,85 @@ export function generateWorld(seed: number): WorldData {
       }
     }
   };
-  around('stall', roadAngles[0] + 0.9, plaza.r + 2.2);
   around('notice', roadAngles[1] + 0.35, plaza.r + 1.2);
-  around('bench', roadAngles[2] + 0.6, plaza.r + 1.0);
-  around('crates', roadAngles[0] + 1.6, plaza.r + 2.5, 0.4);
-  around('barrels', roadAngles[1] - 0.6, plaza.r + 2.0, -0.3);
+
+  // the plaza: a market corner (stall with crates and barrels), two benches facing the well, each
+  // with a flower bed at one end, and beds flanking the road mouths. All of it stays off the lanes people
+  // walk: the road mouths to the well, a ring around the well, the spawn and a new player's first
+  // steps (screen-up of the fixed isometric camera is world -X-Z, the way tools/e2e.mjs walks).
+  const spawn = { x: plaza.x, z: plaza.z + plaza.r - 3 };
+  const lanes: [Pt, Pt, number][] = roads.map((r): [Pt, Pt, number] => [[plaza.x, plaza.z], r[0], ROAD_HALF]);
+  lanes.push([[spawn.x, spawn.z], [spawn.x - 6, spawn.z - 6], 1.5]);
+  const plazaProps: Structure[] = [];
+  const fits = (s: Structure, gap: number, group: Structure[] = []) => {
+    const fp = footprint(s);
+    if (fp.some(([x, z]) => Math.hypot(x - plaza.x, z - plaza.z) > plaza.r - 0.4)) return false;
+    if (outlineGap(fp, footprint(well)) < 1.5 || Math.hypot(s.x - spawn.x, s.z - spawn.z) < 2.6) return false;
+    if (lanes.some(([a, b, half]) => outlineGap(fp, [a, b]) < half)) return false;
+    if (roads.some((r) => r.slice(0, 3).some((p, i) => i > 0 && outlineGap(fp, [r[i - 1], p]) < ROAD_HALF + 0.3))) return false;
+    return plazaProps.every((o) => outlineGap(fp, footprint(o)) >= (group.includes(o) ? 0.25 : gap));
+  };
+  /**
+   * Places `type` at the first candidate spot (x, z, rot) that fits, `gap` m from other props
+   * (0.25 m from the members of its group).
+   */
+  const place = (type: string, gap: number, spots: [number, number, number][], group: Structure[] = []) => {
+    for (const [x, z, rot] of spots) {
+      const s = { type, x, z, rot };
+      if (!fits(s, gap, group)) continue;
+      structures.push(s);
+      plazaProps.push(s);
+      return s;
+    }
+    return undefined;
+  };
+  /** A spot at angle `a`, `r` m from the well, facing it (+ turn). */
+  const spot = (a: number, r: number, turn = 0): [number, number, number] => {
+    const x = plaza.x + Math.cos(a) * r;
+    const z = plaza.z + Math.sin(a) * r;
+    return [x, z, facing(x, z) + turn];
+  };
+  /** Spots on a circle around the well, nearest to angle `ang` first. */
+  const ring = (ang: number, r: number, turn = 0) => Array.from({ length: 31 }, (_, k) => spot(ang + Math.ceil(k / 2) * 0.06 * (k % 2 ? 1 : -1), r, turn));
+  /** A spot in the local frame of `base` (lx to its left, lz to its front). */
+  const local = (base: Structure, lx: number, lz: number, turn = 0): [number, number, number] => {
+    const c = Math.cos(base.rot);
+    const n = Math.sin(base.rot);
+    return [base.x + lx * c + lz * n, base.z - lx * n + lz * c, base.rot + turn];
+  };
+  /** Angle at fraction f of the way from road i to the next one (by increasing angle). */
+  const sector = (i: number, f: number) => {
+    const span = (((roadAngles[(i + 1) % 3] - roadAngles[i]) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    return roadAngles[i] + span * f;
+  };
+  // market corner between the north and east roads, the counter turned toward the open side of
+  // the plaza (and the camera) rather than squarely at the well
+  const stall = place('stall', 0.9, [4.8, 5.2, 4.5].flatMap((r) => ring(sector(0, 0.42), r, 0.6)));
+  if (stall) {
+    const market = [stall];
+    const crates = place('crates', 0.9, [local(stall, 2.75, -0.35, 0.25), local(stall, -2.75, -0.35, -0.25), local(stall, 0.4, -1.8, 0.15)], market);
+    if (crates) market.push(crates);
+    place('barrels', 0.9, [local(stall, 2.6, 1.7, 0.85), local(stall, -2.6, 1.7, -0.85), local(stall, -0.6, -1.8, -0.2)], market);
+  }
+  // two benches facing the well from opposite sides, a bed at one end of each
+  for (const [i, f, r] of [[2, 0.64, 5.6], [1, 0.3, 4.0]]) {
+    const bench = place('bench', 0.9, [r, r + 0.4, r - 0.4].flatMap((rr) => ring(sector(i, f), rr)));
+    if (bench) place('flower_bed', 0.9, [local(bench, 1.75, -0.1), local(bench, -1.75, -0.1), local(bench, 0, -1.4)], [bench]);
+  }
+  // a pair of beds framing each road mouth, just inside the curb (both or none, for symmetry)
+  const mouth = Math.asin((ROAD_HALF + 1.4) / (plaza.r - 1.3)) + 0.05;
+  for (const a of roadAngles) {
+    for (let k = 0; k < 4; k++) {
+      const pair = [-1, 1].map((side): Structure => {
+        const [x, z] = spot(a + side * (mouth + k * 0.06), plaza.r - 1.3);
+        return { type: 'flower_bed', x, z, rot: 0 };
+      });
+      if (!pair.every((s) => fits(s, 0.9))) continue;
+      structures.push(...pair);
+      plazaProps.push(...pair);
+      break;
+    }
+  }
   // lamps at the three road entrances
   for (const a of roadAngles) {
     for (const side of [-1, 1]) {
@@ -263,6 +400,27 @@ export function generateWorld(seed: number): WorldData {
     }
   }
 
+  // flower beds: a flowering shrub toward the back, a carpet of blooms and a few tufts in front
+  // (the camera looks from +X+Z)
+  const beds = structures.filter((s) => s.type === 'flower_bed');
+  const bedRng = new Rng(hashSeed(seed, 'beds'));
+  for (const b of beds) {
+    const plant = (frame: string, a: number, r: number, scale: number) => {
+      const x = b.x + Math.cos(a) * r;
+      const z = b.z + Math.sin(a) * r;
+      // never mirrored: Billboards mirrors with a negative scale, which culls the quad
+      nature.placements.push({ frame, x, y: height(x, z), z, scale, flip: false, tint: [1, 1, 1] });
+    };
+    const front = Math.PI / 4;
+    const [carpet, size] = bedRng.pick([['decal_flowers_5', 0.8], ['decal_flowers_6', 0.68], ['decal_flowers_4', 1.0], ['decal_flowers_2', 0.62]] as const);
+    plant(carpet, 0, 0, size);
+    // no shrub in a bed between the camera and a bench: it would hide the seat
+    const hidesBench = structures.some((o) => o.type === 'bench' && Math.hypot(o.x - b.x, o.z - b.z) < 2.2 && b.x - o.x + (b.z - o.z) > 0.8);
+    if (hidesBench) for (const k of [-1, 1]) plant(bedRng.pick(['tall_flowers_l', 'tall_flowers_y']), front + Math.PI + k * 0.7, 0.3, bedRng.range(0.9, 1.05));
+    else plant(bedRng.chance(0.5) ? 'bush_2' : 'bush_3', front + Math.PI, 0.18, bedRng.range(0.78, 0.86));
+    for (let k = 0; k < 3; k++) plant(bedRng.pick(['grass_flower_y', 'grass_flower_w', 'grass_flower_l']), front + (k - 1) * 0.8, 0.55, bedRng.range(0.9, 1.1));
+  }
+
   // wolf dens deep in the woods, away from the village
   const dens: Den[] = [];
   for (let i = 0; i < 400 && dens.length < 5; i++) {
@@ -280,10 +438,12 @@ export function generateWorld(seed: number): WorldData {
     const r = splatNoise.fbm(x + 100, z, 9, 3);
     const road = Math.max(0, Math.min(1, 1.2 - roadDist(x, z) / (ROAD_HALF + 0.6)));
     const pd = Math.hypot(x - plaza.x, z - plaza.z);
-    const cob = Math.max(0, Math.min(1, (plaza.r - pd) / 1.5 + 0.5));
+    let cob = Math.max(0, Math.min(1, (plaza.r - pd) / 1.5 + 0.5));
+    // flower beds: grass in a gap of the paving, ringed by the same curb as the plaza's edge
+    if (pd < plaza.r) for (const b of beds) cob = Math.min(cob, Math.max(0, 0.31 + (Math.hypot(x - b.x, z - b.z) - BED_RADIUS) * 0.6));
     const bank = Math.max(0, Math.min(1, (1.1 - pondDist(x, z)) / 0.8)); // muddy shore along the water edge
     return [r, Math.max(pd > plaza.r - 0.5 ? road : 0, bank), cob, nature.shade(x, z)];
   };
 
-  return { seed, size, half, plaza, roads, structures, nature, colliders, dens, ponds, pondDist, spawn: { x: 0, z: plaza.r - 3 }, height, splat };
+  return { seed, size, half, plaza, roads, structures, nature, colliders, dens, ponds, pondDist, spawn, height, splat };
 }

@@ -9,7 +9,9 @@ export const LAYER_XRAY_HOSTILE = 3; // same for hostile creatures (red)
  * Markers drawn after the composite, straight into the low-res image: exact sRGB colors (no
  * grade, vignette, ink or x-ray on them) and no depth buffer, so they sit above canopies and
  * houses. Objects must be on this layer ONLY (`layers.set(LAYER_OVERLAY)`), use materials with
- * depthTest/depthWrite off and output sRGB. Their shaders may read `xrayDepth` (creatures).
+ * depthTest/depthWrite off and output sRGB. Their shaders may read `xrayDepth` (creatures),
+ * `outlineDepth` (outlined objects) and `beautyDepth` (everything) to hide behind things, and
+ * `beautyColor` to adapt to what lies under them.
  */
 export const LAYER_OVERLAY = 4;
 
@@ -114,6 +116,24 @@ export class PixelPipeline {
    */
   get xrayDepth(): THREE.DepthTexture {
     return this.xray.depthTexture!;
+  }
+
+  /** Color of the beauty pass (linear, before outlines and grade). */
+  get beautyColor(): THREE.Texture {
+    return this.beauty.texture;
+  }
+
+  /** Depth of the whole beauty pass (terrain, sprites, everything drawn), window space. */
+  get beautyDepth(): THREE.DepthTexture {
+    return this.beauty.depthTexture!;
+  }
+
+  /**
+   * Depth of the LAYER_OUTLINE objects only (characters, creatures, buildings: no terrain or
+   * sprites), window space; 1.0 where none was drawn.
+   */
+  get outlineDepth(): THREE.DepthTexture {
+    return this.normals.depthTexture!;
   }
 
   /** Call on window resize (css size + devicePixelRatio). */

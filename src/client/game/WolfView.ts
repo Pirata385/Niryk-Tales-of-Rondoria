@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { EntityAnim } from '@shared/protocol';
+import { disposeInstance } from '../character/CharacterView';
 import { loadModel } from '../core/assets';
 import { LAYER_OUTLINE, LAYER_XRAY_HOSTILE } from '../render/PixelPipeline';
 import { toonFromGltf } from '../render/toon';
@@ -13,10 +14,16 @@ export class WolfView {
   readonly mixer: THREE.AnimationMixer;
   private readonly actions = new Map<string, THREE.AnimationAction>();
   private current: THREE.AnimationAction | null = null;
-  private currentKey = '';
+  /** Clip playing and the server start time it was started for (one-shots restart when it changes). */
+  private currentAnim: EntityAnim | null = null;
+  private currentStart = NaN;
+  private flashAmount = NaN; // NaN: the first call always writes the emissive
   private readonly materials: THREE.MeshToonMaterial[] = [];
 
-  private constructor(model: THREE.Object3D, clips: THREE.AnimationClip[]) {
+  private constructor(
+    private readonly model: THREE.Object3D,
+    clips: THREE.AnimationClip[],
+  ) {
     this.root.add(model);
     model.traverse((o) => {
       const mesh = o as THREE.Mesh;
@@ -40,18 +47,19 @@ export class WolfView {
 
   /** Plays the server animation; one-shots restart whenever `start` changes. */
   setAnim(anim: EntityAnim, start: number, elapsed: number): void {
-    const key = LOOPING.has(anim) ? anim : `${anim}@${start}`;
-    if (key === this.currentKey) return;
+    const looping = LOOPING.has(anim);
+    if (anim === this.currentAnim && (looping || start === this.currentStart)) return;
     const action = this.actions.get(anim);
     if (!action) return;
     action.reset();
-    action.setLoop(LOOPING.has(anim) ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+    action.setLoop(looping ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
     action.clampWhenFinished = true;
     if (this.current && this.current !== action) action.crossFadeFrom(this.current, 0.12, false);
     action.play();
-    if (!LOOPING.has(anim)) action.time = Math.max(0, Math.min(elapsed, action.getClip().duration));
+    if (!looping) action.time = Math.max(0, Math.min(elapsed, action.getClip().duration));
     this.current = action;
-    this.currentKey = key;
+    this.currentAnim = anim;
+    this.currentStart = start;
   }
 
   private xrayOn = true;
@@ -69,10 +77,26 @@ export class WolfView {
 
   /** Brief white flash when hit. */
   flash(amount: number): void {
+    if (amount === this.flashAmount) return;
+    this.flashAmount = amount;
     for (const m of this.materials) m.emissive.setScalar(amount * 0.8);
   }
 
   update(dt: number): void {
     this.mixer.update(dt);
+  }
+
+  /**
+   * Frees this instance's animation state, toon materials and cloned skeletons (the geometries
+   * and textures are the GLTF cache's, shared by every wolf) and removes it from the scene.
+   */
+  dispose(): void {
+    this.mixer.stopAllAction();
+    this.mixer.uncacheRoot(this.model);
+    this.root.removeFromParent();
+    disposeInstance(this.root);
+    this.materials.length = 0;
+    this.actions.clear();
+    this.current = null;
   }
 }

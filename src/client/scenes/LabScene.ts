@@ -108,7 +108,7 @@ export async function runLabScene(canvas: HTMLCanvasElement): Promise<void> {
       scene.add(new Billboards(atlas, texture, [{ frame: 'oak_round_1', x: treeAt.x, y: 0, z: treeAt.z }]).group);
     }
   }
-  const markers = new Markers(iso);
+  const markers = new Markers(pipeline, iso);
   const effects = new Effects(document.createElement('div'), pipeline, iso);
   if (markersOn) scene.add(markers.group, effects.group);
   const warn = Number(q.get('warn') ?? 0.4);

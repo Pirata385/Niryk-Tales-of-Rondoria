@@ -26,6 +26,24 @@ function liftDark(c: THREE.Color): THREE.Color {
   return c.lerp(DARK_FLOOR, Math.min(1, t));
 }
 
+/**
+ * Disposes the per-instance GPU objects under `root`: every mesh material (the views replace the
+ * GLTF materials with their own toon copies) and every skinned mesh's skeleton (clones get their
+ * own, with a bone texture). Never touches geometries or textures: those are the cached GLTF's.
+ */
+export function disposeInstance(root: THREE.Object3D): void {
+  const skeletons = new Set<THREE.Skeleton>();
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    if (Array.isArray(mesh.material)) for (const m of mesh.material) m.dispose();
+    else mesh.material.dispose();
+    const skinned = o as THREE.SkinnedMesh;
+    if (skinned.isSkinnedMesh) skeletons.add(skinned.skeleton);
+  });
+  for (const s of skeletons) s.dispose();
+}
+
 export interface CharacterOptions {
   /** Silhouette when hidden behind scenery: 'player' (lilac), 'hostile' (red) or none. */
   xray?: 'player' | 'hostile';
@@ -170,6 +188,22 @@ export class CharacterView {
   /** Finds a bone or socket by name (e.g. Socket_Weapon_R). */
   attachPoint(name: string): THREE.Object3D | undefined {
     return this.model.getObjectByName(name);
+  }
+
+  /**
+   * Frees what this instance owns: its animation state, its toon materials (body and attached
+   * equipment alike get their own per instance) and its cloned skeletons' bone textures. The
+   * geometries and textures belong to the GLTF cache shared by every character and stay. Removes
+   * the root from its parent; the view must not be used afterwards.
+   */
+  dispose(): void {
+    this.mixer.stopAllAction();
+    this.mixer.uncacheRoot(this.model);
+    this.root.removeFromParent();
+    disposeInstance(this.root);
+    this.slots.clear();
+    this.actions.clear();
+    this.current = null;
   }
 
   /** The skeleton shared by every skinned part (armor is re-bound to it by bone name). */

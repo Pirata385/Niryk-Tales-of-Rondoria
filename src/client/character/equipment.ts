@@ -28,6 +28,7 @@ function prepare(root: THREE.Object3D, xray: boolean): void {
 /**
  * Equips an item model on a character: weapons are parented to Socket_Weapon_R; armor meshes are
  * skinned on the same bone names as the body, so they are re-bound to the character's skeleton.
+ * Never rejects (callers fire and forget it): a failed load is logged and the slot stays empty.
  */
 export async function equip(view: CharacterView, slot: EquipSlot, itemId: string | null, xray = false): Promise<void> {
   const map = attached.get(view) ?? new Map<EquipSlot, THREE.Object3D>();
@@ -40,22 +41,26 @@ export async function equip(view: CharacterView, slot: EquipSlot, itemId: string
   map.get(slot)?.removeFromParent();
   map.delete(slot);
   if (!itemId) return;
+  try {
+    const obj = await loadEquipment(view, slot, itemId);
+    if (stale()) return;
+    prepare(obj, xray);
+    (slot === 'weapon' ? view.attachPoint('Socket_Weapon_R') : view.model)?.add(obj);
+    map.set(slot, obj);
+  } catch (err) {
+    // a newer request already owns the slot: its own outcome is what matters
+    if (!stale()) console.error(`equip ${slot} ${itemId} failed:`, err);
+  }
+}
+
+/** Loads the object for an item, ready to attach (armor already bound to the view's bones). */
+async function loadEquipment(view: CharacterView, slot: EquipSlot, itemId: string): Promise<THREE.Object3D> {
   const item = ITEMS[itemId];
   if (!item) throw new Error(`unknown item ${itemId}`);
-
-  if (slot === 'weapon') {
-    const gltf = await loadModel(item.model);
-    if (stale()) return;
-    const obj = gltf.scene.clone(true);
-    prepare(obj, xray);
-    view.attachPoint('Socket_Weapon_R')?.add(obj);
-    map.set(slot, obj);
-    return;
-  }
+  if (slot === 'weapon') return (await loadModel(item.model)).scene.clone(true);
 
   // armor: rebind every skinned mesh to the character's bones (matched by name)
   const gltf = await loadModel(`${item.model}_${bodyModel(view.appearance)}`);
-  if (stale()) return;
   const skeleton = view.skeleton;
   if (!skeleton) throw new Error('character has no skeleton');
   const byName = new Map(skeleton.bones.map((b) => [b.name, b]));
@@ -73,7 +78,5 @@ export async function equip(view: CharacterView, slot: EquipSlot, itemId: string
     mesh.bind(new THREE.Skeleton(bones, src.skeleton.boneInverses), src.bindMatrix);
     group.add(mesh);
   });
-  prepare(group, xray);
-  view.model.add(group);
-  map.set(slot, group);
+  return group;
 }

@@ -5,13 +5,23 @@ import { LAYER_OVERLAY, type PixelPipeline } from '../render/PixelPipeline';
 /** Player ground ring: radius (m), color and opacity (critic G9 #14a). */
 const RING_RADIUS = 0.5;
 const RING_COLOR = '#f4f1e6';
+/** Blended over the finished sRGB image (overlay pass): this is the perceived opacity. */
 const RING_OPACITY = 0.35;
 /**
- * The ring is pulled this far toward the camera along the view axis. In an orthographic view
- * that changes only its depth, not its pixels: it then wins against small bumps of the terrain
- * under it, yet still loses against the legs standing in it (≈0.5 m nearer for its back arc).
+ * Contrast floor: a ring pixel is always at least this much lighter (sRGB luma) than the
+ * brightest ground pixel next to it, up to the full ring color. At 35% the ring would vanish
+ * into the speckles of the grass and into pale cobbles; with the floor it reads as one clean
+ * light line everywhere, and stays at 35% over dark ground.
  */
-const RING_DEPTH_BIAS = 0.2;
+const RING_LIFT = 0.1;
+/**
+ * The ring is a flat disc at the feet height, but the ground mesh is a 2 m grid that rises up to
+ * ≈0.4 m above the feet within the ring on pond banks: along the view ray that is ≈0.6 m nearer.
+ * So terrain and sprites hide the ring only when they are this much (m) nearer than it; outlined
+ * objects (characters, creatures, buildings) hide it as soon as they are in front.
+ */
+const RING_TERRAIN_TOLERANCE = 0.75;
+const RING_OBJECT_TOLERANCE = 0.05;
 
 /** Health bar: filled area in internal pixels, plus a 1 px ink border around it. */
 const BAR_W = 24;
@@ -24,6 +34,12 @@ const WARN_R0 = 1.05;
 const WARN_R1 = 0.55;
 /** Half-size (m) of the warning quad: the largest ring plus its band. */
 const WARN_EXTENT = WARN_R0 + 0.2;
+/**
+ * The warning is a flat disc at the wolf's feet height: a creature standing in it whose feet are
+ * lower (a slope) would have its feet painted over. Creatures still cut it out when they are up
+ * to this far (m) behind the disc along the view axis (≈0.2 m of height difference).
+ */
+const WARN_BEHIND = 0.3;
 const _p = new THREE.Vector3();
 
 /** sRGB hex -> raw sRGB components (overlay shaders write the final image: no color management). */
@@ -57,25 +73,50 @@ float ringPixels(vec2 local, float radius) {
   return (d - radius) / pxStep;
 }`;
 
-function playerRingMaterial(): THREE.ShaderMaterial {
+function playerRingMaterial(pipeline: PixelPipeline, iso: IsoCamera): THREE.ShaderMaterial {
+  const depthRange = iso.camera.far - iso.camera.near; // orthographic: window depth is linear
   return new THREE.ShaderMaterial({
     uniforms: {
       radius: { value: RING_RADIUS },
-      color: { value: new THREE.Color(RING_COLOR) }, // beauty pass: linear, graded with the world
+      color: { value: srgb(RING_COLOR) },
       opacity: { value: RING_OPACITY },
+      tBeauty: { value: pipeline.beautyColor },
+      tBeautyDepth: { value: pipeline.beautyDepth },
+      tOutlineDepth: { value: pipeline.outlineDepth },
     },
     vertexShader: GROUND_VS,
     fragmentShader: /* glsl */ `
       uniform float radius;
       uniform vec3 color;
       uniform float opacity;
+      uniform sampler2D tBeauty;
+      uniform sampler2D tBeautyDepth;
+      uniform sampler2D tOutlineDepth;
       varying vec2 vLocal;
       ${RING_PX_GLSL}
+      const vec3 LUMA = vec3(0.299, 0.587, 0.114);
+      // perceived luma of the beauty pass at a texel (linear -> sRGB, as the composite does)
+      float groundLuma(ivec2 q) {
+        vec3 c = max(texelFetch(tBeauty, clamp(q, ivec2(0), textureSize(tBeauty, 0) - 1), 0).rgb, vec3(0.0));
+        return dot(mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)), LUMA);
+      }
       void main() {
         if (abs(ringPixels(vLocal, radius)) >= 0.5) discard; // 1 internal pixel wide
-        gl_FragColor = vec4(color, opacity);
+        // meters by which the scene at this pixel is nearer than the ring (1.0: nothing drawn)
+        ivec2 p = ivec2(gl_FragCoord.xy);
+        float nearerObject = (gl_FragCoord.z - texelFetch(tOutlineDepth, p, 0).r) * ${depthRange.toFixed(1)};
+        float nearerAny = (gl_FragCoord.z - texelFetch(tBeautyDepth, p, 0).r) * ${depthRange.toFixed(1)};
+        if (nearerObject > ${RING_OBJECT_TOLERANCE.toFixed(2)} || nearerAny > ${RING_TERRAIN_TOLERANCE.toFixed(2)}) discard;
+        // 35% over the ground, raised where needed to stay a step above the brightest neighbor
+        float under = groundLuma(p);
+        float brightest = under;
+        for (int i = 0; i < 9; i++) brightest = max(brightest, groundLuma(p + ivec2(i % 3 - 1, i / 3 - 1)));
+        float ring = dot(color, LUMA);
+        float a = (min(brightest + ${RING_LIFT.toFixed(2)}, ring) - under) / max(ring - under, 1e-3);
+        gl_FragColor = vec4(color, clamp(max(opacity, a), 0.0, 1.0));
       }`,
     transparent: true,
+    depthTest: false,
     depthWrite: false,
   });
 }
@@ -103,9 +144,10 @@ function warningRingMaterial(pipeline: PixelPipeline, iso: IsoCamera): THREE.Sha
         // 4 px band: ink, red, red, ink (reads on grass, dirt and stone alike)
         float t = ringPixels(vLocal, radius);
         if (abs(t) >= 2.0) discard;
-        // drawn over canopies and roofs, but under the creatures standing on it
+        // drawn over canopies and roofs, but under the creatures standing on it: also those up to
+        // WARN_BEHIND m behind the ring's plane (feet a little downhill from the wolf's)
         float zx = texelFetch(tXrayDepth, ivec2(gl_FragCoord.xy), 0).r;
-        if (zx < 1.0 && (gl_FragCoord.z - zx) * ${depthRange.toFixed(1)} > 0.05) discard;
+        if (zx < 1.0 && (gl_FragCoord.z - zx) * ${depthRange.toFixed(1)} > -${WARN_BEHIND.toFixed(2)}) discard;
         gl_FragColor = vec4(abs(t) < 1.0 ? fill : ink, opacity);
       }`,
     transparent: true,
@@ -159,22 +201,27 @@ interface Bar {
 /**
  * Legibility markers for the small phone view (critic G9 #14): a thin light ring on the ground
  * under the local player, and pixel health bars over wounded wolves that stay visible above
- * canopies. Immediate-mode: call `beginFrame()`, then `playerRing()` / `wolfBar()` for whatever
- * should show this frame; everything not requested again is hidden. Bars are pooled by slot,
- * so wolves despawning or respawning with new ids need no bookkeeping. Nothing is allocated per
- * frame (the pool only grows when more wounded wolves are on screen at once than ever before).
+ * canopies. Both are drawn on LAYER_OVERLAY, over the finished image (exact colors, crisp).
+ * Immediate-mode: call `beginFrame()`, then `playerRing()` / `wolfBar()` for whatever should show
+ * this frame; everything not requested again is hidden. Bars are pooled by slot, so wolves
+ * despawning or respawning with new ids need no bookkeeping. Nothing is allocated per frame (the
+ * pool only grows when more wounded wolves are on screen at once than ever before).
  */
 export class Markers {
-  /** Add to the game scene. Holds the ground ring (beauty pass) and the bars (overlay layer). */
+  /** Add to the game scene. */
   readonly group = new THREE.Group();
   private readonly ring: THREE.Mesh;
   private readonly bars: Bar[] = [];
   private readonly barGeo = new THREE.PlaneGeometry(1, 1);
   private used = 0;
 
-  constructor(private readonly iso: IsoCamera) {
-    this.ring = new THREE.Mesh(groundQuad(RING_RADIUS + 0.1), playerRingMaterial());
-    this.ring.renderOrder = 1; // after the sprites' ground shadows (-1), with the depth test on
+  constructor(
+    pipeline: PixelPipeline,
+    private readonly iso: IsoCamera,
+  ) {
+    this.ring = new THREE.Mesh(groundQuad(RING_RADIUS + 0.1), playerRingMaterial(pipeline, iso));
+    this.ring.layers.set(LAYER_OVERLAY);
+    this.ring.renderOrder = 5; // under the warning rings (10) and the bars (20)
     this.ring.visible = false;
     this.group.add(this.ring);
   }
@@ -188,8 +235,7 @@ export class Markers {
 
   /** Light ring on the ground under the local player (x, z and the terrain height there). */
   playerRing(x: number, groundY: number, z: number): void {
-    const p = this.iso.snapToTexels(_p.set(x, groundY, z));
-    this.ring.position.copy(p).addScaledVector(this.iso.back, RING_DEPTH_BIAS);
+    this.ring.position.copy(this.iso.snapToTexels(_p.set(x, groundY, z)));
     this.ring.visible = true;
   }
 

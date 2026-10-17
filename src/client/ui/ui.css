@@ -277,38 +277,89 @@
 }
 
 /* ---------------------------------------------------------------- creator */
+/* The panel is a flex column: title and footer (error + actions) keep their size and only the
+   option list scrolls, so "Aleatório" and "Entrar no mundo" are always on screen. */
 .creator {
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: minmax(300px, 380px) 1fr;
+  grid-template-columns: minmax(300px, 384px) 1fr;
+  grid-template-rows: minmax(0, 1fr);
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
   pointer-events: none;
 }
 .creator .side {
   pointer-events: auto;
-  margin: 12px;
-  overflow-y: auto;
+  align-self: start;
+  max-height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
+  overflow: hidden;
 }
 .creator h1 {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
   margin: 0;
   font-size: 28px;
   color: var(--gold);
   line-height: 1;
 }
 .creator h1 small {
-  display: block;
   font-size: 14px;
   color: var(--muted);
+}
+.creator .side-list {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* room for the scrollbar without moving it onto the gold rim (and for the last selection ring) */
+  margin-right: -6px;
+  padding: 0 6px 2px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--wood-edge) transparent;
+}
+.creator .side-list.more-below {
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 28px), #0000);
+  mask-image: linear-gradient(#000 calc(100% - 28px), #0000);
+}
+.creator .side-list.more-above {
+  -webkit-mask-image: linear-gradient(#0000, #000 20px);
+  mask-image: linear-gradient(#0000, #000 20px);
+}
+.creator .side-list.more-above.more-below {
+  -webkit-mask-image: linear-gradient(#0000, #000 20px, #000 calc(100% - 28px), #0000);
+  mask-image: linear-gradient(#0000, #000 20px, #000 calc(100% - 28px), #0000);
+}
+.creator .options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.creator .side-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 2px solid var(--wood-edge);
 }
 .field label,
 .field .lbl {
   display: block;
   font-size: 14px;
   color: var(--muted);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 .seg {
   display: flex;
@@ -319,23 +370,50 @@
   flex: 1;
   min-width: 0;
   padding: 6px 8px;
+  line-height: 1.1;
 }
+/* swatches: one 44 px cell per color (a full touch target) with the color chip drawn inside;
+   eight columns so every color row lines up */
 .swatches {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 44px));
 }
 .swatch {
-  width: 34px;
-  height: 34px;
-  border: 3px solid var(--ink);
-  border-radius: 3px;
-  box-shadow: inset 0 0 0 2px #0004;
+  position: relative;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
   cursor: pointer;
   pointer-events: auto;
 }
-.swatch.selected {
+.swatch::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  background: var(--swatch);
+  border: 3px solid var(--ink);
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 2px #0004;
+}
+@media (pointer: fine) {
+  /* a mouse needs less than a thumb: shorter rows keep every option on a 720 px screen */
+  .swatch {
+    height: 38px;
+  }
+  .swatch::before {
+    inset: 2px 5px;
+  }
+}
+.swatch.selected::before {
   outline: 3px solid var(--gold);
+  outline-offset: 1px;
+}
+.swatch:focus-visible {
+  outline: none;
+}
+.swatch:focus-visible::before {
+  outline: 2px dashed var(--parchment);
   outline-offset: 1px;
 }
 .creator input[type='text'] {
@@ -347,12 +425,19 @@
   border: 3px solid var(--ink);
   box-shadow: inset 0 0 0 2px var(--wood-edge);
   padding: 8px;
+  min-height: 44px;
   border-radius: 3px;
+  -webkit-user-select: text;
+  user-select: text;
 }
 .race-info {
   font-size: 13px;
   color: var(--muted);
   line-height: 1.35;
+}
+.creator .race-info {
+  margin-top: -2px;
+  line-height: 1.25;
 }
 .creator .actions {
   display: flex;
@@ -364,7 +449,7 @@
 .creator .preview-ui {
   align-self: end;
   justify-self: center;
-  margin-bottom: 18px;
+  margin-bottom: 6px;
   display: flex;
   gap: 6px;
   pointer-events: auto;
@@ -374,28 +459,50 @@
   font-size: 14px;
   min-height: 18px;
 }
+.creator .error:empty {
+  display: none;
+}
 
 /* phones in portrait: preview on top, options in a bottom sheet */
 @media (max-aspect-ratio: 1/1) {
   .creator {
-    grid-template-columns: 1fr;
-    grid-template-rows: 42vh 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 42% minmax(0, 1fr);
+    padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom))
+      max(6px, env(safe-area-inset-left));
   }
   .creator .side {
     grid-row: 2;
-    min-height: 0;
-    margin: 0 8px 8px;
+    align-self: stretch;
+    justify-self: center;
+    width: min(100%, 560px);
+    padding: 10px;
   }
   .creator .preview-ui {
     grid-row: 1;
-    margin-bottom: 6px;
+  }
+  .creator h1 {
+    font-size: 24px;
   }
 }
+/* phones in landscape: a narrower title, the panel keeps the left half */
 @media (max-height: 500px) and (min-aspect-ratio: 1/1) {
   .creator {
     grid-template-columns: minmax(280px, 46vw) 1fr;
+    padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom))
+      max(6px, env(safe-area-inset-left));
+  }
+  .creator .side {
+    padding: 10px;
+    gap: 6px;
   }
   .creator h1 {
     font-size: 22px;
+  }
+  .creator h1 small {
+    font-size: 12px;
+  }
+  .creator .side-foot {
+    padding-top: 6px;
   }
 }

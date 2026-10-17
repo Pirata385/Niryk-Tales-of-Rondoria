@@ -9,12 +9,51 @@ export interface MoveInput {
   run: boolean;
 }
 
-/** One tick of player intent, as the client sends it (the server sanitizes it first). */
+/** One tick of player intent, as the client sends it (both sides run it through `sanitizeInput`). */
 export interface PlayerInput extends MoveInput {
   /** Attack pressed during this tick. */
   attack: boolean;
   /** Aim of that press (radians, world yaw), or null to swing where the player faces. */
   aim: number | null;
+}
+
+/** Any shape at all: what arrives from a client is untrusted. */
+export interface RawInput {
+  mx?: unknown;
+  mz?: unknown;
+  run?: unknown;
+  attack?: unknown;
+  aim?: unknown;
+}
+
+/**
+ * The one reading of an input that the server simulates and the client predicts with, so both
+ * step exactly the same numbers: mx/mz clamped to [-1, 1] and the vector shortened to length ≤ 1,
+ * non-finite numbers zeroed, the aim wrapped to [-π, π] (null when missing or not finite), flags
+ * strictly boolean. Idempotent: the server re-reading what an honest client sent changes nothing.
+ * Writes into `out` and returns it.
+ */
+export function sanitizeInput<T extends PlayerInput>(raw: RawInput, out: T): T {
+  let mx = clampUnit(raw.mx);
+  let mz = clampUnit(raw.mz);
+  const len = Math.hypot(mx, mz);
+  // the tolerance keeps it idempotent: a normalized vector may measure 1 + a few ulps
+  if (len > 1 + 1e-9) {
+    mx /= len;
+    mz /= len;
+  }
+  out.mx = mx;
+  out.mz = mz;
+  out.run = raw.run === true;
+  out.attack = raw.attack === true;
+  // % first: exact at any magnitude (wrapAngle alone drifts outside [-π, π] for huge values);
+  // it leaves an aim already in [-π, π] untouched
+  out.aim = typeof raw.aim === 'number' && Number.isFinite(raw.aim) ? wrapAngle(raw.aim % (Math.PI * 2)) : null;
+  return out;
+}
+
+function clampUnit(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0;
 }
 
 export interface MoveState {

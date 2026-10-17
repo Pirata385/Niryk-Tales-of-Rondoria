@@ -57,11 +57,14 @@ export function bodyModel(a: Pick<Appearance, 'race' | 'gender'>): string {
   return `${a.race}_${a.gender}`;
 }
 
+/**
+ * Starting look per race and gender. Default tunics stay off green (a green tunic on the green
+ * fields loses the character's silhouette): human male brown, human female wine, Harpins ochre.
+ */
 export function defaultAppearance(race: Race = 'human', gender: Gender = 'm'): Appearance {
   return race === 'human'
     ? { name: '', race, gender, skin: SKIN_TONES[1], hairStyle: gender === 'f' ? 'longo' : 'curto', hairColor: HUMAN_HAIR_COLORS[2], plumeColor: HARPIN_COLORS.branco, eyeColor: EYE_COLORS[1], clothColor: gender === 'f' ? CLOTH_COLORS[3] : CLOTH_COLORS[1] }
     : { name: '', race, gender, skin: SKIN_TONES[1], hairStyle: gender === 'f' ? 'plumado' : 'espetado', hairColor: HARPIN_COLORS.branco, plumeColor: HARPIN_COLORS.preto, eyeColor: EYE_COLORS[1], clothColor: CLOTH_COLORS[5] };
-// default tunics stay off green: a green tunic on the green fields loses the character's silhouette
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -104,7 +107,7 @@ export function randomAppearance(rand: () => number, race?: Race): Appearance {
     hairColor: hair,
     plumeColor: plume,
     eyeColor: pick(EYE_COLORS),
-    clothColor: tunicFor(r === 'harpin' ? [hair, plume] : [hair], pick(CLOTH_COLORS)),
+    clothColor: tunicFor(tunicClashColors({ race: r, hairColor: hair, plumeColor: plume }), pick(CLOTH_COLORS)),
   };
 }
 
@@ -135,11 +138,26 @@ export function tunicFor(featherColors: string[], wanted: string): string {
       return Math.min(dh, 360 - dh) < 60;
     });
   if (!clash(wanted)) return wanted;
-  return CLOTH_COLORS.find((c) => !clash(c)) ?? wanted;
+  // green (CLOTH_COLORS[0]) is the last resort: it melts into the fields
+  return [...CLOTH_COLORS.slice(1), CLOTH_COLORS[0]].find((c) => !clash(c)) ?? wanted;
+}
+
+/**
+ * Colors a tunic must not melt into: a Harpin's hair and plumes (saturated greens, blues, reds and
+ * yellows, with wings and tail framing the tunic). Human hair is a natural brown or red that never
+ * moves the tunic: brown hair with a brown or wine tunic is the agreed human look.
+ */
+export function tunicClashColors(a: Pick<Appearance, 'race' | 'hairColor' | 'plumeColor'>): string[] {
+  return a.race === 'harpin' ? [a.hairColor, a.plumeColor] : [];
+}
+
+/** Tunic for a character whose player has not picked one: `wanted` (the race/gender default) off its plumes. */
+export function defaultTunic(a: Pick<Appearance, 'race' | 'gender' | 'hairColor' | 'plumeColor'>, wanted?: string): string {
+  return tunicFor(tunicClashColors(a), wanted ?? defaultAppearance(a.race, a.gender).clothColor);
 }
 
 /** Fills fields added after a character was saved (old saves keep working). */
 export function migrateAppearance(a: Partial<Appearance>): Appearance {
-  const d = defaultAppearance(a.race ?? 'human', a.gender ?? 'm');
-  return { ...d, ...a, clothColor: a.clothColor ?? tunicFor([a.hairColor ?? d.hairColor, a.plumeColor ?? d.plumeColor], d.clothColor) };
+  const filled = { ...defaultAppearance(a.race ?? 'human', a.gender ?? 'm'), ...a };
+  return { ...filled, clothColor: a.clothColor ?? defaultTunic(filled) };
 }

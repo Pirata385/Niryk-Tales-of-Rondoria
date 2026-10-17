@@ -48,6 +48,8 @@ export const S = {
     hintDesktop: 'WASD para andar · Shift para correr · clique para atacar · I equipamento',
     hintTouch: 'Arraste à esquerda para andar (até a borda para correr) · toque em ⚔ para atacar',
     loading: 'Carregando Rondoria…',
+    connectionError: 'Não foi possível entrar no mundo. Tente de novo.',
+    backToCreator: 'Voltar ao criador',
     wolves: 'Cuidado: lobos rondam os bosques além da vila.',
   },
 };

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   CLOTH_COLORS, EYE_COLORS, HAIR_STYLES, HAIR_STYLE_LABELS, HARPIN_COLORS, HUMAN_HAIR_COLORS, SKIN_TONES, defaultAppearance,
-  migrateAppearance, randomAppearance, tunicFor, validateAppearance, type Appearance, type Gender, type Race,
+  defaultTunic, migrateAppearance, randomAppearance, validateAppearance, type Appearance, type Gender, type Race,
 } from '@shared/appearance';
 import { CharacterView, type AnimName } from '../character/CharacterView';
 import { equip } from '../character/equipment';
@@ -49,10 +49,13 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
   let app: Appearance = saved ?? { ...defaultAppearance('human', 'm') };
   let plumeLinked = app.race !== 'harpin' || app.plumeColor === app.hairColor;
   let previewAnim: AnimName = 'Idle';
-  /** Until the player picks a tunic color, it steps away from green plumes/hair automatically. */
+  /**
+   * Until the player picks a tunic color it follows the race/gender default (or the last random
+   * roll) and steps away from clashing Harpin plumes; a race or gender switch drops the roll.
+   */
   let clothChosen = saved !== null;
-  const autoTunic = (a: Appearance): Appearance =>
-    clothChosen ? a : { ...a, clothColor: tunicFor(a.race === 'harpin' ? [a.hairColor, a.plumeColor] : [a.hairColor], defaultAppearance(a.race, a.gender).clothColor) };
+  let clothRolled: string | null = null;
+  const autoTunic = (a: Appearance): Appearance => (clothChosen ? a : { ...a, clothColor: defaultTunic(a, clothRolled ?? undefined) });
 
   // ---------------------------------------------------------------- 3D preview
   const scene = new THREE.Scene();
@@ -63,7 +66,7 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
   const tex = await Promise.all(['ground_grass_a', 'ground_grass_b', 'ground_dirt', 'ground_cobble', 'noise'].map((n) => loadTexture(`sprites/${n}.png`)));
   const ground = createGround(
     { grassA: tex[0], grassB: tex[1], dirt: tex[2], cobble: tex[3], noise: tex[4] },
-    { size: 12, step: 1, height: () => 0, splat: (x, z) => [0, 0, Math.hypot(x, z) < 1.6 ? 1 : 0, 0] },
+    { size: 24, step: 1, height: () => 0, splat: (x, z) => [0, 0, Math.hypot(x, z) < 1.6 ? 1 : 0, 0] },
   );
   scene.add(ground);
   let view: CharacterView | null = null;
@@ -105,15 +108,37 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
   nameInput.maxLength = 16;
   nameInput.placeholder = S.creator.namePlaceholder;
   nameInput.value = app.name;
-  nameInput.oninput = () => (app = { ...app, name: nameInput.value });
-  nameField.append(h('label', '', S.creator.name), nameInput);
-  const options = h('div');
+  nameInput.id = 'creator-name';
+  nameInput.oninput = () => {
+    app = { ...app, name: nameInput.value };
+    error.textContent = '';
+  };
+  const nameLabel = h('label', '', S.creator.name);
+  nameLabel.htmlFor = nameInput.id;
+  nameField.append(nameLabel, nameInput);
+  const options = h('div', 'options');
   const error = h('div', 'error');
+  error.setAttribute('role', 'alert');
   const actions = h('div', 'actions');
   const random = h('button', 'btn', S.creator.random);
   const start = h('button', 'btn primary', S.creator.start);
   actions.append(random, start);
-  side.append(title, nameField, options, error, actions);
+  // only the option list scrolls: the title and the action buttons always stay in view
+  const list = h('div', 'side-list');
+  list.append(nameField, options);
+  const foot = h('div', 'side-foot');
+  foot.append(error, actions);
+  side.append(title, list, foot);
+  /** Fades the list's edges while there is more to scroll that way (phones hide scrollbars). */
+  const syncScroll = () => {
+    list.classList.toggle('more-above', list.scrollTop > 1);
+    list.classList.toggle('more-below', list.scrollTop + list.clientHeight < list.scrollHeight - 1);
+  };
+  list.addEventListener('scroll', syncScroll, { passive: true });
+  // the list and its content resize on font load, option changes, errors and window resizes
+  const listResize = new ResizeObserver(syncScroll);
+  listResize.observe(list);
+  listResize.observe(options);
 
   function seg<T extends string>(label: string, values: T[], current: T, text: (v: T) => string, on: (v: T) => void): HTMLElement {
     const f = h('div', 'field');
@@ -134,7 +159,7 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
     const row = h('div', 'swatches');
     for (const c of colors) {
       const s = h('button', `swatch${c === current ? ' selected' : ''}`);
-      s.style.background = c;
+      s.style.setProperty('--swatch', c);
       s.setAttribute('aria-label', c);
       s.onclick = () => on(c);
       row.append(s);
@@ -152,6 +177,7 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
         const d = defaultAppearance(r, app.gender);
         app = { ...d, name: app.name, gender: app.gender, skin: app.skin, eyeColor: app.eyeColor, clothColor: app.clothColor };
         plumeLinked = r === 'harpin' ? false : true;
+        clothRolled = null;
         update();
       }),
     );
@@ -159,7 +185,9 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
     options.append(info);
     options.append(
       seg<Gender>(S.creator.gender, ['m', 'f'], app.gender, (g) => S.creator.genders[g], (g) => {
+        if (g === app.gender) return;
         app = { ...app, gender: g };
+        clothRolled = null;
         update();
       }),
     );
@@ -232,6 +260,7 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
     const name = app.name;
     app = { ...randomAppearance(Math.random), name };
     clothChosen = false;
+    clothRolled = app.clothColor;
     plumeLinked = app.plumeColor === app.hairColor;
     update();
   };
@@ -318,6 +347,7 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
     ctx.canvas.removeEventListener('pointerdown', down);
     removeEventListener('pointermove', move);
     removeEventListener('pointerup', up);
+    listResize.disconnect();
     root.remove();
   };
 }

@@ -1,6 +1,6 @@
 import type { Appearance } from '@shared/appearance';
 import { TICK_DT } from '@shared/constants';
-import { stepPlayer, wrapAngle, type PlayerInput, type PlayerMotion } from '@shared/movement';
+import { sanitizeInput, stepPlayer, wrapAngle, type PlayerInput, type PlayerMotion } from '@shared/movement';
 import type { ClientMsg, EntityState, Equipment, GameEvent, SelfState, ServerMsg } from '@shared/protocol';
 import type { CollisionWorld } from '@shared/world/collision';
 import type { Transport } from '../net/Transport';
@@ -85,6 +85,7 @@ export class GameClient {
   private readonly selfOut: Pose = { x: 0, z: 0, yaw: 0 };
   private readonly remoteOut: Pose = { x: 0, z: 0, yaw: 0 };
   private readonly seen = new Set<number>();
+  private readonly raw: Intent = { ...IDLE };
 
   constructor(private readonly transport: Transport) {
     transport.onMessage((m) => this.receive(m));
@@ -149,14 +150,15 @@ export class GameClient {
     this.accumulator += Math.min(dt, 0.25);
     while (this.accumulator >= TICK_DT) {
       this.accumulator -= TICK_DT;
-      const input: PendingInput = {
-        seq: ++this.seq,
-        mx: intent.mx,
-        mz: intent.mz,
-        run: intent.run,
-        attack: this.attackLatched,
-        aim: this.attackLatched ? this.latchedAim : intent.aim,
-      };
+      const raw = this.raw;
+      raw.mx = intent.mx;
+      raw.mz = intent.mz;
+      raw.run = intent.run;
+      raw.attack = this.attackLatched;
+      raw.aim = this.attackLatched ? this.latchedAim : intent.aim;
+      // read exactly as the server will (clamped, normalized, aim wrapped): the prediction must
+      // step the same numbers the server simulates
+      const input = sanitizeInput<PendingInput>(raw, { seq: ++this.seq, mx: 0, mz: 0, run: false, attack: false, aim: null });
       this.attackLatched = false;
       this.latchedAim = null;
       this.transport.send({ t: 'input', seq: input.seq, mx: input.mx, mz: input.mz, run: input.run, attack: input.attack, aim: input.aim });

@@ -112,3 +112,44 @@ describe('tunic color', () => {
     expect(a.clothColor).not.toBe(CLOTH_COLORS[0]);
   });
 });
+
+describe('village square', () => {
+  it('is furnished without overlaps, keeping the roads, the well, the doors and the first steps clear', async () => {
+    const { generateWorld, footprint, outlineGap, STRUCTURES } = await import('../src/shared/world/worldgen');
+    const { CollisionWorld } = await import('../src/shared/world/collision');
+    const { PLAYER_RADIUS } = await import('../src/shared/constants');
+    for (const seed of [1, 2, 7, 19]) {
+      const w = generateWorld(seed);
+      const col = new CollisionWorld(w.colliders, w.half);
+      const inPlaza = w.structures.filter((s) => Math.hypot(s.x - w.plaza.x, s.z - w.plaza.z) < w.plaza.r);
+      const count = (type: string) => inPlaza.filter((s) => s.type === type).length;
+      expect([count('well'), count('stall'), count('crates'), count('barrels'), count('bench')]).toEqual([1, 1, 1, 1, 2]);
+      expect(count('flower_bed')).toBeGreaterThan(0);
+
+      // no two structures of the village overlap, and each one blocks walking where it stands
+      for (let i = 0; i < w.structures.length; i++) {
+        const a = w.structures[i];
+        expect(col.blocked(a.x, a.z, 0.05)).toBe(true);
+        for (let j = i + 1; j < w.structures.length; j++) expect(outlineGap(footprint(a), footprint(w.structures[j]))).toBeGreaterThan(0.2);
+      }
+      // plaza props stay inside the paving and off the roads
+      for (const s of inPlaza) {
+        for (const [x, z] of footprint(s)) expect(Math.hypot(x - w.plaza.x, z - w.plaza.z)).toBeLessThan(w.plaza.r);
+        for (const road of w.roads) {
+          for (let i = 1; i < road.length; i++) expect(outlineGap(footprint(s), [road[i - 1], road[i]])).toBeGreaterThan(1.5);
+        }
+      }
+      // a path all around the well, and a new player's first 8 m (screen-up is world -X-Z)
+      for (let k = 0; k < 24; k++) {
+        const a = (k / 24) * Math.PI * 2;
+        expect(col.blocked(w.plaza.x + Math.cos(a) * 2.2, w.plaza.z + Math.sin(a) * 2.2, PLAYER_RADIUS)).toBe(false);
+      }
+      for (let t = 0; t <= 8; t += 0.25) expect(col.blocked(w.spawn.x - t * Math.SQRT1_2, w.spawn.z - t * Math.SQRT1_2, PLAYER_RADIUS + 0.4)).toBe(false);
+      // the house doors (front, facing the plaza) open onto free ground
+      for (const h of w.structures.filter((s) => s.type.startsWith('house'))) {
+        const out = STRUCTURES[h.type].d / 2 + 1;
+        expect(col.blocked(h.x + Math.sin(h.rot) * out, h.z + Math.cos(h.rot) * out, PLAYER_RADIUS + 0.3)).toBe(false);
+      }
+    }
+  });
+});

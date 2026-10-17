@@ -57,7 +57,7 @@ export class WorldView {
 
   private async buildStructures(): Promise<THREE.Object3D[]> {
     const out: THREE.Object3D[] = [];
-    const types = [...new Set(this.world.structures.map((s) => s.type))];
+    const types = [...new Set(this.world.structures.map((s) => s.type))].filter((t) => !STRUCTURES[t].painted);
     const models = new Map<string, THREE.Object3D>();
     await Promise.all(
       types.map(async (t) => {
@@ -69,6 +69,7 @@ export class WorldView {
     );
     for (const s of this.world.structures) {
       const def = STRUCTURES[s.type];
+      if (def.painted) continue; // drawn by the ground splat and the nature sprites
       const obj = models.get(s.type)?.clone(true) ?? placeholder(def.w, def.d, s.type);
       obj.position.set(s.x, this.world.height(s.x, s.z), s.z);
       obj.rotation.y = s.rot;
