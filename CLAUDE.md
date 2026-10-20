@@ -8,10 +8,23 @@ O dono do projeto escreve em português (geralmente pelo celular); responda em p
 - `docs/art/references/`: imagens de referência do dono. O personagem "Oni", do repositório
   Pyram3D, **não** faz parte deste jogo.
 
-## Regra do Crítico (obrigatória)
+## Fase atual: protótipo (revisões do crítico pausadas)
 
-Toda entrega visual (modelo, sprite, animação, tela do jogo) e todo sistema de código relevante
-passam pelo agente **crítico** (`.claude/agents/critico.md`) antes de chegar ao dono:
+Estamos prototipando: nada do que existe tem garantia de entrar no jogo final. O foco é
+**desenvolver e experimentar ideias**, não polir. Por decisão do dono, a Regra do Crítico abaixo
+está **pausada**:
+- Não lance o crítico nem rodadas de revisão, a menos que o dono peça.
+- Mantenha só o básico verde: `npm run typecheck`, `npm test` e, ao mexer no jogo,
+  `SHOTS=desktop npm run e2e`.
+- Anote o que fica para depois em `docs/BACKLOG.md`.
+
+O polimento e o crítico voltam quando o trabalho sério no jogo começar.
+
+## Regra do Crítico (pausada na fase de protótipo)
+
+Quando reativada, toda entrega visual (modelo, sprite, animação, tela do jogo) e todo sistema de
+código relevante passam pelo agente **crítico** (`.claude/agents/critico.md`) antes de chegar ao
+dono:
 
 1. Gere o material de revisão:
    - assets 3D: folhas do Pyram3D em `projects/niryk/review/`;
