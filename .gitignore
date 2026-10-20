@@ -6,5 +6,5 @@ test-results/
 *.log
 __pycache__/
 .DS_Store
-tools/art2d/out/
+**/tools/art2d/out/
 .cache/

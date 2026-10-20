@@ -6,7 +6,7 @@
 //     between models (and batch the village into a few draw calls).
 //
 //   node tools/import-models.mjs [name ...]     (default: everything)
-//   PYRAM3D_EXPORTS=/path/to/Pyram3D/projects/niryk/exports
+//   PYRAM3D_EXPORTS=/path/to/Pyram3D/projects/niryk/protótipo_1/exports
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { dedup, meshopt, prune, quantize, resample, simplifyPrimitive, weld } from '@gltf-transform/functions';
@@ -15,7 +15,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 
-const SRC = resolve(process.env.PYRAM3D_EXPORTS ?? '../Pyram3D/projects/niryk/exports');
+const SRC = resolve(process.env.PYRAM3D_EXPORTS ?? '../../../Pyram3D/projects/niryk/protótipo_1/exports');
 const DST = resolve('assets/models');
 
 /** Max triangles per primitive (by mesh-name prefix); unmatched primitives use DEFAULT_BUDGET. */

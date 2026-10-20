@@ -51,7 +51,7 @@ Decisões posteriores do dono:
 - `docs/art/references/05_campo_pintado_arvores.jpg`: o bioma inicial. Grama pintada, árvores com
   copa em camadas, flores em manchas, trilha de terra.
 - `docs/art/references/06_harpin_conceito.png`: o design dos Harpins.
-- `docs/art/ART_DIRECTION.md` e `docs/GDD.md` são as regras do projeto.
+- `docs/GDD.md` (raiz) e a direção de arte do protótipo em revisão (`protótipos/<protótipo>/docs/art/ART_DIRECTION.md`) são as regras do projeto.
 
 ## Como revisar
 

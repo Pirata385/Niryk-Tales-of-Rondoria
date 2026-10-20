@@ -1,4 +1,4 @@
-# Publishes the game to GitHub Pages on every push to main.
+# Publishes every prototype (protótipos/protótipo_N) to GitHub Pages on every push to main.
 # One-time setup: Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
 name: Deploy to GitHub Pages
 
@@ -25,12 +25,24 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
+          cache-dependency-path: protótipos/*/package-lock.json
+      # every prototype is its own Vite app: test it, build it and publish it at /prototipo-N/
+      # (ASCII URLs), next to the landing page protótipos/index.html
+      - name: Build the prototypes
+        run: |
+          mkdir -p _site
+          cp protótipos/index.html _site/index.html
+          for dir in protótipos/protótipo_*/; do
+            [ -f "$dir/package.json" ] || continue
+            n="${dir%/}"; n="${n##*_}"
+            echo "::group::protótipo $n"
+            (cd "$dir" && npm ci && npm test && npm run build)
+            cp -r "$dir/dist" "_site/prototipo-$n"
+            echo "::endgroup::"
+          done
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: _site
 
   deploy:
     needs: build
