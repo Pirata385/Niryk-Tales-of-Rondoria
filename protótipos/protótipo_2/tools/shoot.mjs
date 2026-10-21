@@ -120,12 +120,12 @@ function envSteps() {
 
 /** The style slice: what the owner judges the look on. */
 const SLICE = [
-  { name: 'slice_3p_desktop', vp: 'desktop', query: '' },
-  { name: 'slice_1p_desktop', vp: 'desktop', query: '', view: '1p', pitch: -0.12 },
-  { name: 'slice_3p_phone', vp: 'phone', query: '' },
-  { name: 'slice_3p_phone_land', vp: 'phone_land', query: '' },
+  { name: 'slice_3p_desktop', vp: 'desktop', query: '?play' },
+  { name: 'slice_1p_desktop', vp: 'desktop', query: '?play', view: '1p', pitch: -0.12 },
+  { name: 'slice_3p_phone', vp: 'phone', query: '?play' },
+  { name: 'slice_3p_phone_land', vp: 'phone_land', query: '?play' },
   { name: 'slice_closeup', vp: 'desktop', query: '?scene=lab' },
-  { name: 'slice_run', vp: 'desktop', query: '', run: 1400, pitch: -0.3 },
+  { name: 'slice_run', vp: 'desktop', query: '?play', run: 1400, pitch: -0.3 },
 ];
 
 async function main() {

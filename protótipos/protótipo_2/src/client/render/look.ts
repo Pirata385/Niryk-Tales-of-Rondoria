@@ -39,6 +39,12 @@ export const LOOK = {
 };
 
 /**
+ * Render layers. The game camera draws layer 0 only; the sun's shadow camera draws both, so the
+ * head and hair hidden in first person (moved to FP_HIDDEN) still cast their shadow.
+ */
+export const LAYERS = { fpHidden: 1 };
+
+/**
  * Uniforms shared by reference by every material of the game (toon, outline, sky, water,
  * grass): changing a value here changes it everywhere at once.
  */

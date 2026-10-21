@@ -9,7 +9,7 @@
 import { mkdirSync } from 'node:fs';
 import { VIEWPORTS, launch, startServer } from './shoot.mjs';
 
-const QUERY = `?debug&q=${process.env.Q ?? 'low'}`;
+const QUERY = `?play&debug&q=${process.env.Q ?? 'low'}`;
 
 const state = (page) =>
   page.evaluate(() => {

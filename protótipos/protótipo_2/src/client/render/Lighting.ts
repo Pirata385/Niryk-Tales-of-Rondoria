@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LOOK } from './look';
+import { LAYERS, LOOK } from './look';
 
 // follow() scratch
 const _snapped = new THREE.Vector3();
@@ -30,6 +30,7 @@ export class Lighting {
     s.bias = -0.0004;
     s.normalBias = 0.045;
     s.radius = 1;
+    s.camera.layers.enable(LAYERS.fpHidden);
     this.sun.target = this.sunTarget;
     scene.add(this.sun, this.sunTarget);
   }

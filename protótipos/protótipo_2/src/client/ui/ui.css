@@ -24,7 +24,8 @@
   box-sizing: border-box;
 }
 #ui .interactive,
-#ui button {
+#ui button,
+#ui input {
   pointer-events: auto;
 }
 
@@ -61,6 +62,10 @@
 .btn.primary {
   background: linear-gradient(#c24a3a, #7a2a28);
   font-size: 18px;
+}
+.btn.selected {
+  background: linear-gradient(#8a6a3a, #5a4224);
+  box-shadow: inset 0 0 0 2px var(--gold), 0 3px 0 #0008;
 }
 .btn:disabled {
   opacity: 0.5;
@@ -288,4 +293,273 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   pointer-events: auto;
+}
+
+/* ---------------------------------------------------------------- creator */
+/* The panel is a flex column: title and footer (error + actions) keep their size and only the
+   option list scrolls, so "Aleatório" and "Entrar no mundo" are always on screen. */
+.creator {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) 1fr;
+  grid-template-rows: minmax(0, 1fr);
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
+  pointer-events: none;
+}
+.creator .side {
+  pointer-events: auto;
+  align-self: start;
+  max-height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+  background: linear-gradient(#3a2c40f2, #2a2133f2);
+}
+.creator h1 {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+  margin: 0;
+  font-size: 28px;
+  color: var(--gold);
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+}
+.creator h1 small {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+.creator .side-list {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-right: -6px;
+  padding: 0 6px 2px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rim) transparent;
+}
+.creator .side-list.more-below {
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 28px), #0000);
+  mask-image: linear-gradient(#000 calc(100% - 28px), #0000);
+}
+.creator .side-list.more-above {
+  -webkit-mask-image: linear-gradient(#0000, #000 20px);
+  mask-image: linear-gradient(#0000, #000 20px);
+}
+.creator .side-list.more-above.more-below {
+  -webkit-mask-image: linear-gradient(#0000, #000 20px, #000 calc(100% - 28px), #0000);
+  mask-image: linear-gradient(#0000, #000 20px, #000 calc(100% - 28px), #0000);
+}
+.creator .options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.creator .side-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 2px solid var(--rim);
+}
+.field label,
+.field .lbl {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 3px;
+  letter-spacing: 0.03em;
+}
+.seg {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.seg .btn {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  line-height: 1.1;
+  font-size: 15px;
+}
+.btn.link {
+  margin-top: 6px;
+  min-height: 38px;
+  font-size: 14px;
+  padding: 4px 12px;
+}
+/* swatches: one 44 px cell per color (a full touch target) with the color chip drawn inside */
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 44px));
+}
+.swatch {
+  position: relative;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.swatch::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  background: var(--swatch);
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  box-shadow: inset 0 -3px 0 #0003, inset 0 2px 0 #fff3;
+}
+@media (pointer: fine) {
+  /* a mouse needs less than a thumb: shorter rows keep every option on a 720 px screen */
+  .swatch {
+    height: 38px;
+  }
+  .swatch::before {
+    inset: 3px 6px;
+    border-radius: 10px;
+  }
+}
+.swatch.selected::before {
+  outline: 3px solid var(--gold);
+  outline-offset: 1px;
+}
+.swatch:focus-visible {
+  outline: none;
+}
+.swatch:focus-visible::before {
+  outline: 2px dashed var(--parchment);
+  outline-offset: 1px;
+}
+.creator input[type='text'] {
+  width: 100%;
+  font: inherit;
+  font-size: 18px;
+  color: var(--parchment);
+  background: var(--ink);
+  border: 2px solid var(--ink);
+  box-shadow: inset 0 0 0 2px var(--rim);
+  padding: 8px 10px;
+  min-height: 44px;
+  border-radius: 8px;
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: manipulation;
+}
+.creator input[type='text']:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--gold);
+}
+.race-info {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+.creator .actions {
+  display: flex;
+  gap: 8px;
+}
+.creator .actions .primary {
+  flex: 1;
+}
+.creator .preview-ui {
+  grid-column: 2;
+  align-self: end;
+  justify-self: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.creator .preview-ui .btn {
+  pointer-events: auto;
+  min-width: 84px;
+}
+.creator .preview-hint {
+  flex-basis: 100%;
+  text-align: center;
+  font-size: 12px;
+  color: var(--parchment);
+  opacity: 0.8;
+}
+.error {
+  color: #ff8a7a;
+  font-size: 14px;
+  min-height: 18px;
+}
+.creator .error:empty {
+  display: none;
+}
+
+/* phones in portrait: preview on top, options in a bottom sheet */
+@media (max-aspect-ratio: 1/1) {
+  .creator {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom))
+      max(6px, env(safe-area-inset-left));
+    row-gap: 6px;
+  }
+  .creator .side {
+    grid-row: 2;
+    align-self: stretch;
+    justify-self: center;
+    width: min(100%, 560px);
+    max-height: 56vh;
+    max-height: 56dvh;
+    padding: 10px;
+  }
+  .creator .preview-ui {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .creator h1 {
+    font-size: 22px;
+  }
+  .creator .preview-hint {
+    display: none;
+  }
+}
+/* phones in landscape: a narrower title, the panel keeps the left part */
+@media (max-height: 500px) and (min-aspect-ratio: 1/1) {
+  .creator {
+    grid-template-columns: minmax(280px, 46vw) 1fr;
+    padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom))
+      max(6px, env(safe-area-inset-left));
+    column-gap: 6px;
+  }
+  .creator .side {
+    padding: 10px;
+    gap: 6px;
+  }
+  .creator h1 {
+    font-size: 20px;
+  }
+  .creator h1 small {
+    font-size: 12px;
+  }
+  .creator .side-foot {
+    padding-top: 6px;
+  }
+  .creator .preview-hint {
+    display: none;
+  }
 }

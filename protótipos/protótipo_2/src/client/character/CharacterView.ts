@@ -3,6 +3,7 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 import { bodyModel, type Appearance } from '@shared/appearance';
 import { BACKPEDAL_FACTOR, RUN_SPEED, WALK_SPEED } from '@shared/constants';
 import { loadModelOrNull } from '../core/assets';
+import { LAYERS } from '../render/look';
 import { addOutline } from '../render/outline';
 import { toonFromGltf } from '../render/toon';
 import { PlaceholderRig, buildPlaceholderHuman } from './placeholder';
@@ -23,11 +24,12 @@ const NO_INK = /^(Eye|EyeWhite|Dark)/;
 /** Hidden in first person (the camera sits inside the head). */
 const FIRST_PERSON_HIDDEN = /^(Head_|Hair_)/;
 
-/** Slots the appearance does not choose (yet): trousers, leather, metal fittings. */
+/** Slots the appearance does not choose (yet): trousers, leather, metal fittings, Harpin talons. */
 export const SLOT_DEFAULTS: Record<string, string> = {
   Cloth_B: '#5e4c40',
   Leather: '#7a4a2c',
   Metal: '#bcc4ce',
+  Talon: '#3a3036',
 };
 
 /**
@@ -188,46 +190,42 @@ export class CharacterView {
   static async create(appearance: Appearance): Promise<CharacterView> {
     const gltf = await loadModelOrNull(bodyModel(appearance));
     if (gltf) return new CharacterView(cloneSkinned(gltf.scene), gltf.animations, appearance, null);
-    const parts = buildPlaceholderHuman();
+    const parts = buildPlaceholderHuman({ race: appearance.race, gender: appearance.gender });
     return new CharacterView(parts.root, [], appearance, new PlaceholderRig(parts));
   }
 
   /** Recolors the tintable slots from the appearance. */
   applyAppearance(a: Appearance): void {
     this.appearance = a;
-    const tint: Record<string, string> = { ...SLOT_DEFAULTS, Skin: a.skin, Hair: a.hairColor, Eye: a.eyeColor, Cloth_A: a.clothColor };
+    const tint: Record<string, string> = { ...SLOT_DEFAULTS, Skin: a.skin, Hair: a.hairColor, Plume: a.plumeColor, Eye: a.eyeColor, Cloth_A: a.clothColor };
     for (const [slot, color] of Object.entries(tint)) {
       const c = slot === 'Eye' || slot === 'Skin' ? new THREE.Color(color) : liftDark(new THREE.Color(color));
       for (const m of this.slots.get(slot) ?? []) m.color.copy(c);
     }
-    // only the chosen hair style (top nodes Hair_<style>; the placeholder has one cap)
-    if (!this.placeholder) {
-      const styles = new Set<string>();
-      this.model.traverse((o) => {
-        if (o.name.startsWith('Hair_') && !o.parent?.name.startsWith('Hair_')) styles.add(o.name);
-      });
-      if (styles.has(`Hair_${a.hairStyle}`)) {
-        this.model.traverse((o) => {
-          if (o.name.startsWith('Hair_') && !o.parent?.name.startsWith('Hair_')) o.visible = o.name === `Hair_${a.hairStyle}` && !this.firstPerson;
-        });
-      }
-    }
+    // only the chosen hair style (top nodes Hair_<style>); a model without that style keeps its own
+    const styles: THREE.Object3D[] = [];
+    this.model.traverse((o) => {
+      if (o.name.startsWith('Hair_') && !o.parent?.name.startsWith('Hair_')) styles.push(o);
+    });
+    if (styles.some((o) => o.name === `Hair_${a.hairStyle}`)) for (const o of styles) o.visible = o.name === `Hair_${a.hairStyle}`;
   }
 
-  /** First person: hides the head and hair (Head_*, Hair_*), keeps arms and sword. */
+  /**
+   * First person: the head and hair (nodes Head_*, Hair_*) move to a layer the game camera does not
+   * draw (the sun's shadow camera still does: the shadow keeps its head); arms and sword stay.
+   */
   setFirstPerson(on: boolean): void {
     if (on === this.firstPerson) return;
     this.firstPerson = on;
-    this.model.traverse((o) => {
-      if (!FIRST_PERSON_HIDDEN.test(o.name) || o.userData.isOutline) return;
-      if (o.name.startsWith('Hair_') && !this.placeholder && o.parent?.name.startsWith('Hair_')) return;
-      if (on) {
-        o.userData.fpWasVisible = o.visible;
-        o.visible = false;
-      } else {
-        o.visible = (o.userData.fpWasVisible as boolean | undefined) ?? true;
+    const layer = on ? LAYERS.fpHidden : 0;
+    const apply = (o: THREE.Object3D) => {
+      if (FIRST_PERSON_HIDDEN.test(o.name)) {
+        o.traverse((c) => c.layers.set(layer));
+        return;
       }
-    });
+      for (const c of o.children) apply(c);
+    };
+    apply(this.model);
   }
 
   /** The velocity in the character's own frame (m/s): `left` toward its +X, `forward` along +Z. */

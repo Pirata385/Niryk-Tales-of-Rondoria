@@ -62,23 +62,29 @@ const _look = { x: 0, y: 0 };
  * Resolves with a dispose function. If entering the world fails it shows an error and resolves
  * with the function that removes it.
  */
-export async function runGame(ctx: AppContext, appearance: Appearance, makeTransport: TransportFactory): Promise<() => void> {
+export async function runGame(ctx: AppContext, appearance: Appearance, makeTransport: TransportFactory, onNewCharacter: () => void): Promise<() => void> {
   // cleanups of everything built so far, run in reverse: on dispose, or when entering fails halfway
   const teardown: (() => void)[] = [];
   const dispose = () => {
     while (teardown.length) teardown.pop()!();
   };
   try {
-    await enterWorld(ctx, appearance, makeTransport, teardown);
+    await enterWorld(ctx, appearance, makeTransport, onNewCharacter, teardown);
     return dispose;
   } catch (err) {
     console.error(err);
     dispose();
-    return showEntryError(ctx.ui);
+    return showEntryError(ctx.ui, onNewCharacter);
   }
 }
 
-async function enterWorld(ctx: AppContext, appearance: Appearance, makeTransport: TransportFactory, teardown: (() => void)[]): Promise<void> {
+async function enterWorld(
+  ctx: AppContext,
+  appearance: Appearance,
+  makeTransport: TransportFactory,
+  onNewCharacter: () => void,
+  teardown: (() => void)[],
+): Promise<void> {
   const loading = document.createElement('div');
   loading.className = 'loading';
   loading.textContent = S.hud.loading;
@@ -126,6 +132,7 @@ async function enterWorld(ctx: AppContext, appearance: Appearance, makeTransport
       onAttack: () => input.pressAttack(),
       onToggleView: () => cam.toggleMode(),
       onRespawn: () => client.send({ t: 'respawn' }),
+      onNewCharacter,
     },
     touch,
   );
@@ -354,18 +361,25 @@ async function enterWorld(ctx: AppContext, appearance: Appearance, makeTransport
 }
 
 /** Shown when entering the world failed; returns the function that removes it. */
-function showEntryError(ui: HTMLElement): () => void {
+function showEntryError(ui: HTMLElement, onBack: () => void): () => void {
   const back = document.createElement('div');
   back.className = 'loading';
   const panel = document.createElement('div');
   panel.className = 'panel modal death';
   const title = document.createElement('h2');
   title.textContent = S.hud.connectionError;
+  const back2 = document.createElement('button');
+  back2.className = 'btn primary';
+  back2.textContent = S.hud.backToCreator;
+  back2.onclick = onBack;
   const button = document.createElement('button');
-  button.className = 'btn primary';
+  button.className = 'btn';
   button.textContent = S.hud.reload;
   button.onclick = () => location.reload();
-  panel.append(title, button);
+  const list = document.createElement('div');
+  list.className = 'menu-list';
+  list.append(back2, button);
+  panel.append(title, list);
   back.append(panel);
   ui.append(back);
   return () => back.remove();

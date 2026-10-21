@@ -11,6 +11,7 @@ export interface HudHandlers {
   onAttack: () => void;
   onToggleView: () => void;
   onRespawn: () => void;
+  onNewCharacter: () => void;
 }
 
 /**
@@ -159,9 +160,14 @@ export class Hud {
       else void document.documentElement.requestFullscreen?.().catch(() => {});
       this.closeModal();
     };
+    const fresh = el('button', 'btn', S.hud.newCharacter);
+    fresh.onclick = () => {
+      this.closeModal();
+      this.h.onNewCharacter();
+    };
     const close = el('button', 'btn', S.hud.close);
     close.onclick = () => this.closeModal();
-    list.append(full, close);
+    list.append(fresh, full, close);
     panel.append(el('h2', '', S.hud.menu), list);
     back.append(panel);
     this.root.append(back);
