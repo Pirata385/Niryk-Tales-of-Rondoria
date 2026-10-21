@@ -69,6 +69,37 @@ async function measure(page, act, stop, seconds = 1.0) {
 
 const wrap = (a) => a - Math.PI * 2 * Math.floor((a + Math.PI) / (Math.PI * 2));
 
+/**
+ * The game world of seed 1, computed here through the dev server (the same shared modules the game
+ * runs): an open meadow spot near the village for the movement checks (8 m free all around, far
+ * from the wolf dens), and the dens.
+ */
+async function worldInfo(server) {
+  const { generateWorld, GAME_WORLD } = await server.ssrLoadModule('/src/shared/world/worldgen.ts');
+  const { CollisionWorld } = await server.ssrLoadModule('/src/shared/world/collision.ts');
+  const w = generateWorld(1, GAME_WORLD);
+  const col = new CollisionWorld(w.colliders, w.half);
+  const free = (x, z) => {
+    for (let d = 0; d <= 8; d += 0.5) {
+      for (let k = 0; k < 16; k++) {
+        const a = (k / 16) * Math.PI * 2;
+        if (col.blocked(x + Math.cos(a) * d, z + Math.sin(a) * d, 0.45)) return false;
+      }
+    }
+    return true;
+  };
+  for (let r = 24; r < 70; r += 2) {
+    for (let k = 0; k < 32; k++) {
+      const a = (k / 32) * Math.PI * 2;
+      const x = Math.cos(a) * r;
+      const z = Math.sin(a) * r;
+      if (w.dens.some((d) => Math.hypot(d.x - x, d.z - z) < 30)) continue;
+      if (free(x, z)) return { open: { x, z, yaw: Math.atan2(-x, -z) }, dens: w.dens, spawn: w.spawn };
+    }
+  }
+  throw new Error('no open spot for the movement checks');
+}
+
 /** One finger held on the screen at (x, y) dragged by (dx, dy), through CDP. */
 async function touchDrag(cdp, id, x, y, dx, dy) {
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id }] });
@@ -78,7 +109,7 @@ async function touchDrag(cdp, id, x, y, dx, dy) {
 }
 const touchEnd = (cdp) => cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 
-async function run(browser, base, vpName) {
+async function run(browser, base, vpName, info) {
   const vp = VIEWPORTS[vpName];
   const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, ...vp });
   const page = await ctx.newPage();
@@ -97,8 +128,14 @@ async function run(browser, base, vpName) {
   await page.waitForFunction(() => window.__niryk?.ready === true && window.__niryk.me, null, { timeout: 180_000 });
   loaded = true;
   let s = await state(page);
-  check(s.me.hp === 100 && s.view.mode === '3p', `in the clearing, 3rd person, full health (draws=${s.draws}, tris=${s.tris})`);
+  check(s.me.hp === 100 && s.view.mode === '3p', `in the village, 3rd person, full health (draws=${s.draws}, tris=${s.tris})`);
   await shot('1_start');
+  // the movement checks need room: an open meadow by the village (facing back toward it)
+  await page.evaluate(([x, z, yaw]) => {
+    window.__niryk.teleport(x, z);
+    window.__niryk.setLook(yaw, -0.14);
+  }, [info.open.x, info.open.z, info.open.yaw]);
+  await gameWait(page, 0.4);
 
   const cdp = touch ? await ctx.newCDPSession(page) : null;
   const W = vp.width;
@@ -235,12 +272,14 @@ async function main() {
   mkdirSync('.shots', { recursive: true });
   const which = (process.env.SHOTS ?? 'desktop,phone,phone_land').split(',');
   const { server, base } = await startServer();
+  const info = await worldInfo(server);
+  console.log(`open spot ${info.open.x.toFixed(1)}, ${info.open.z.toFixed(1)}`);
   const browser = await launch();
   let failed = false;
   try {
     for (const vp of which) {
       try {
-        await run(browser, base, vp);
+        await run(browser, base, vp, info);
       } catch (e) {
         failed = true;
         console.error(`  FAIL ${e.message}`);

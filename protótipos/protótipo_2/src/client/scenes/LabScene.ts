@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Appearance } from '@shared/appearance';
 import { RUN_SPEED, WALK_SPEED } from '@shared/constants';
 import { worldForSeed } from '@shared/world/worldCache';
+import { CLEARING_WORLD } from '@shared/world/worldgen';
 import { CharacterView, type OneShot } from '../character/CharacterView';
 import { equip } from '../character/equipment';
 import { Lighting } from '../render/Lighting';
@@ -33,7 +34,7 @@ export async function runLabScene(renderer: Renderer, appearance: Appearance): P
   const q = new URLSearchParams(location.search);
   const num = (k: string, d: number) => (q.has(k) && q.get(k) !== '' ? Number(q.get(k)) : d);
   const anim = q.get('anim') ?? 'Idle';
-  const world = worldForSeed(1);
+  const world = worldForSeed(1, CLEARING_WORLD);
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(LOOK.fog, LOOK.fogNear, LOOK.fogFar);
   const sky = new Sky();

@@ -17,7 +17,7 @@ import {
   type ServerMsg,
 } from '../shared/protocol';
 import { CollisionWorld } from '../shared/world/collision';
-import { generateWorld, type Den, type WorldData } from '../shared/world/worldgen';
+import { GAME_WORLD, generateWorld, type Den, type WorldData } from '../shared/world/worldgen';
 
 interface QueuedInput extends PlayerInput {
   seq: number;
@@ -101,7 +101,7 @@ export class GameServer {
     private readonly send: Send,
     world?: WorldData,
   ) {
-    this.world = world ?? generateWorld(seed);
+    this.world = world ?? generateWorld(seed, GAME_WORLD);
     this.collision = new CollisionWorld(this.world.colliders, this.world.half);
     this.rng = new Rng(seed ^ 0x5eed);
     for (const den of this.world.dens) {

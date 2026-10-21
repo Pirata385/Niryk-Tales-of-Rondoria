@@ -9,7 +9,7 @@ import { ROAD_HALF, STRUCTURES, distToPolyline, layoutVillage, type Pt, type Str
 export { STRUCTURES, footprint, outlineGap, type Structure } from './village';
 export type { NaturePlacement } from './nature';
 
-/** What a world has. Prototype 2's style slice is a forest clearing without the village or wolves. */
+/** What a world has: the style slice was a forest clearing; the game is the village world. */
 export interface WorldOptions {
   /** Playable square (m); the land and the woods continue past it as scenery. */
   size: number;
@@ -21,6 +21,8 @@ export interface WorldOptions {
 
 export const CLEARING_WORLD: WorldOptions = { size: 180, village: false, wolves: false };
 export const VILLAGE_WORLD: WorldOptions = { size: 200, village: true, wolves: true };
+/** The world the game is played in (server and clients build it from the welcome's seed). */
+export const GAME_WORLD = VILLAGE_WORLD;
 
 /** A pond: water surface at `level`, irregular shore of mean radius `r` (see WorldData.pondDist). */
 export interface Pond {
@@ -36,12 +38,17 @@ export interface Den {
   r: number;
 }
 
-/** Something the camera must not pass through: a vertical cylinder from the ground to `top` (m, world y). */
+/**
+ * Something the camera must not pass through, from the ground to `top` (m, world y): a vertical
+ * cylinder of radius `r`, or with `box` an oriented box (half extents along its local X/Z, the
+ * same rotation convention as the box colliders); `r` then bounds it.
+ */
 export interface Obstacle {
   x: number;
   z: number;
   r: number;
   top: number;
+  box?: { hw: number; hd: number; rot: number };
 }
 
 /** How the ground looks at a point (the client paints the terrain from it). */
@@ -293,7 +300,10 @@ export function generateWorld(seed: number, options: WorldOptions = CLEARING_WOR
   }
   for (const s of structures) {
     const def = STRUCTURES[s.type];
-    if (!def.painted) obstacles.push({ x: s.x, z: s.z, r: Math.min(def.w, def.d) / 2, top: height(s.x, s.z) + 3 });
+    if (def.painted) continue;
+    const top = height(s.x, s.z) + def.h;
+    if (def.round) obstacles.push({ x: s.x, z: s.z, r: def.w / 2, top });
+    else obstacles.push({ x: s.x, z: s.z, r: Math.hypot(def.w, def.d) / 2, top, box: { hw: def.w / 2, hd: def.d / 2, rot: s.rot } });
   }
 
   // wolf dens deep in the woods, away from the center

@@ -2,25 +2,26 @@ import type { ValueNoise } from '../math/noise';
 import type { Rng } from '../math/random';
 
 /**
- * The starter village of prototype 1 (cobbled plaza with a well, houses facing it, a market
- * corner, benches, lamps, fences and three roads). Prototype 2's style slice is a forest clearing
- * without it (`WorldOptions.village` off); the layout code stays so the village returns with the
- * new 3D houses. Models: assets/models/<type>.glb, front faces +Z; collider footprint in meters.
- * `painted` ones have no model: a flower bed is planted with nature assets.
+ * The starter village (cobbled plaza with a well, houses facing it, a market corner, benches,
+ * lamps, fences and three roads), laid out as in prototype 1. Models: assets/models/<type>.glb
+ * (or an alias, see the client's StructureView), origin at the base center, front faces +Z;
+ * collider footprint `w` x `d` and height `h` in meters (the camera does not pass through them
+ * below `h`). `painted` ones are low ground dressing (a flower bed): walkers collide, the camera
+ * ignores them.
  */
-export const STRUCTURES: Record<string, { w: number; d: number; round?: boolean; painted?: boolean }> = {
-  house_a: { w: 6.2, d: 5.2 },
-  house_b: { w: 7.6, d: 6.2 },
-  house_c: { w: 5.2, d: 4.6 },
-  well: { w: 2.4, d: 2.4, round: true },
-  stall: { w: 3.1, d: 1.9 },
-  notice: { w: 1.6, d: 0.45 },
-  lamp: { w: 0.4, d: 0.4, round: true },
-  crates: { w: 1.6, d: 0.9 },
-  barrels: { w: 1.45, d: 0.9 },
-  fence: { w: 3.0, d: 0.25 },
-  bench: { w: 1.6, d: 0.55 },
-  flower_bed: { w: 1.5, d: 1.5, round: true, painted: true },
+export const STRUCTURES: Record<string, { w: number; d: number; h: number; round?: boolean; painted?: boolean }> = {
+  house_a: { w: 6.2, d: 5.2, h: 6.4 },
+  house_b: { w: 7.6, d: 6.2, h: 7.4 },
+  house_c: { w: 5.2, d: 4.6, h: 5.6 },
+  well: { w: 2.4, d: 2.4, h: 2.9, round: true },
+  stall: { w: 3.1, d: 1.9, h: 2.6 },
+  notice: { w: 1.6, d: 0.45, h: 2.3 },
+  lamp: { w: 0.4, d: 0.4, h: 3.1, round: true },
+  crates: { w: 1.6, d: 0.9, h: 1.3 },
+  barrels: { w: 1.45, d: 0.9, h: 1.0 },
+  fence: { w: 3.0, d: 0.25, h: 1.0 },
+  bench: { w: 1.6, d: 0.55, h: 0.9 },
+  flower_bed: { w: 1.5, d: 1.5, h: 0.5, round: true, painted: true },
 };
 
 export const ROAD_HALF = 1.5;

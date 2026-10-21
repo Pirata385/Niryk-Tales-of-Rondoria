@@ -170,21 +170,15 @@ export class ShoulderCamera {
     const len = Math.hypot(dx, dy, dz);
     if (len < 1e-4) return 1;
     let t = 1;
-    // vertical cylinders (trunks, rocks, buildings), grown by the probe
+    // vertical cylinders (trunks, rocks) and oriented boxes (buildings), grown by the probe
     const a = dx * dx + dz * dz;
     for (const o of this.world.obstacles) {
       const fx = from.x - o.x;
       const fz = from.z - o.z;
       const reach = len + o.r + RIG.probe;
       if (fx * fx + fz * fz > reach * reach) continue;
-      const r = o.r + RIG.probe;
-      const c = fx * fx + fz * fz - r * r;
-      if (c < 0) continue; // the pivot itself is inside (hugging a trunk): ignore that one
       if (a < 1e-8) continue;
-      const b = 2 * (fx * dx + fz * dz);
-      const disc = b * b - 4 * a * c;
-      if (disc < 0) continue;
-      const t0 = (-b - Math.sqrt(disc)) / (2 * a);
+      const t0 = o.box ? boxEntry(o.box, fx, fz, dx, dz, RIG.probe) : circleEntry(o.r + RIG.probe, fx, fz, dx, dz, a);
       if (t0 < 0 || t0 >= t) continue;
       if (from.y + dy * t0 > o.top + RIG.probe) continue; // passes over it
       t = t0;
@@ -230,6 +224,55 @@ export class ShoulderCamera {
       this.camera.updateProjectionMatrix();
     }
   }
+}
+
+/**
+ * Where the segment from (fx, fz) (relative to a circle's center) along (dx, dz) enters a circle of
+ * radius r, as a fraction of the segment; -1 when it misses or starts inside (hugging a trunk).
+ */
+function circleEntry(r: number, fx: number, fz: number, dx: number, dz: number, a: number): number {
+  const c = fx * fx + fz * fz - r * r;
+  if (c < 0) return -1;
+  const b = 2 * (fx * dx + fz * dz);
+  const disc = b * b - 4 * a * c;
+  if (disc < 0) return -1;
+  return (-b - Math.sqrt(disc)) / (2 * a);
+}
+
+/**
+ * The same for an oriented box grown by `grow` (slab test in the box frame; three.js rotation.y:
+ * world (x, z) -> local (x cos - z sin, x sin + z cos)); -1 when it misses or starts inside.
+ */
+function boxEntry(box: { hw: number; hd: number; rot: number }, fx: number, fz: number, dx: number, dz: number, grow: number): number {
+  const c = Math.cos(box.rot);
+  const s = Math.sin(box.rot);
+  const ox = fx * c - fz * s;
+  const oz = fx * s + fz * c;
+  const vx = dx * c - dz * s;
+  const vz = dx * s + dz * c;
+  const hx = box.hw + grow;
+  const hz = box.hd + grow;
+  if (Math.abs(ox) < hx && Math.abs(oz) < hz) return -1;
+  // the two slabs, unrolled (called per obstacle per frame: no arrays)
+  let lo = -Infinity;
+  let hi = Infinity;
+  if (Math.abs(vx) < 1e-9) {
+    if (Math.abs(ox) >= hx) return -1;
+  } else {
+    const t1 = (-hx - ox) / vx;
+    const t2 = (hx - ox) / vx;
+    lo = Math.min(t1, t2);
+    hi = Math.max(t1, t2);
+  }
+  if (Math.abs(vz) < 1e-9) {
+    if (Math.abs(oz) >= hz) return -1;
+  } else {
+    const t1 = (-hz - oz) / vz;
+    const t2 = (hz - oz) / vz;
+    lo = Math.max(lo, Math.min(t1, t2));
+    hi = Math.min(hi, Math.max(t1, t2));
+  }
+  return lo <= hi && lo >= 0 ? lo : -1;
 }
 
 function wrap(a: number): number {

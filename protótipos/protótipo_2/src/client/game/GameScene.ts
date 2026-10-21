@@ -235,7 +235,7 @@ async function enterWorld(
         return views.get(client.myId)?.char.clipWeights() ?? null;
       },
       get world() {
-        return { seed: world.seed, spawn: world.spawn, quality: q.name, nature: world.nature.length, drawnNature: worldView.nature.drawn, drawnGrass: worldView.grass.drawn };
+        return { seed: world.seed, spawn: world.spawn, quality: q.name, nature: world.nature.length, drawnNature: worldView.nature.drawn, drawnGrass: worldView.grass.drawn, structures: worldView.structures.sources, dens: world.dens };
       },
       threeScene: scene,
       teleport: (x: number, z: number) => transport.debug?.teleport(x, z),
