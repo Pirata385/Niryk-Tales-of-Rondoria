@@ -34,6 +34,8 @@ const CHARACTER_RULES = [
   [/plume|tail|leg|feet|toe|claw|talon/i, 12000, 0.0012],
 ];
 const CHARACTER_DEFAULT = [8000, 0.003];
+/** Harpin bodies carry the plumed eagle legs, scaled toes and claws in Body: about twice the skin. */
+const HARPIN_RULES = [[/^Body/, 14000, 0.0015]];
 /** Nature and props: never simplified (already authored to budget). */
 const KINDS = { characters: 'character', equipment: 'prop', nature: 'nature' };
 
@@ -75,7 +77,8 @@ async function main() {
       const tris = prims.reduce((a, p) => a + triCount(p), 0);
       before += tris;
       if (kind === 'character') {
-        const [, budget, error] = CHARACTER_RULES.find(([re]) => re.test(mesh.getName())) ?? [null, ...CHARACTER_DEFAULT];
+        const rules = name.startsWith('harpin') ? [...HARPIN_RULES, ...CHARACTER_RULES] : CHARACTER_RULES;
+        const [, budget, error] = rules.find(([re]) => re.test(mesh.getName())) ?? [null, ...CHARACTER_DEFAULT];
         const ratio = Math.min(1, budget / Math.max(1, tris));
         // lockBorder keeps the seams between primitives (material boundaries) and the open
         // borders (neck, sleeves) exactly where the neighbor mesh expects them
