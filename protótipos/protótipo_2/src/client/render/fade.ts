@@ -12,7 +12,7 @@ import * as THREE from 'three';
 export interface FadeUniforms {
   /** 0..1: how much the masked parts clear around the screen center (the crosshair). */
   uFadeCenter: { value: number };
-  /** Inner and outer radius of that clearing, as fractions of the screen height. */
+  /** Inner and outer radius of that clearing, as fractions of the screen's shorter side. */
   uFadeArea: { value: THREE.Vector2 };
   /**
    * Near-camera fade, view depth in m: everything from x (gone) to y (solid); the masked parts
@@ -62,8 +62,7 @@ float nirykNear(vec2 range, float depth) {
 /** Discards this fragment if the fade covers it (depth: view-space distance, m). */
 void nirykFade(float depth) {
   if (uHideHead > 0.5 && vFadeMask.y > 0.5) discard;
-  float h = uResolution.y;
-  float r = length(gl_FragCoord.xy - 0.5 * uResolution) / h;
+  float r = length(gl_FragCoord.xy - 0.5 * uResolution) / min(uResolution.x, uResolution.y);
   float a = uFadeCenter * vFadeMask.x * (1.0 - smoothstep(uFadeArea.x, uFadeArea.y, r));
   a = max(a, nirykNear(uFadeNear.xy, depth));
   a = max(a, nirykNear(uFadeNear.zw, depth) * vFadeMask.x);

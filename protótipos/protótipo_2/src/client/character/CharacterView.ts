@@ -31,7 +31,8 @@ const FIRST_PERSON_HIDDEN = /^(Head_|Hair_)|temple/i;
 
 /**
  * The local player's view fade (render/fade.ts), view depths in m. Third person: the wings, tail
- * and hair clear a circle around the crosshair (radii in screen heights) and everything dissolves
+ * and hair clear a circle around the crosshair (radii in the screen's shorter side: a phone in
+ * portrait keeps the clearing as narrow as in landscape) and everything dissolves
  * when a wall pushes the camera into the body. First person: only wing and tail feathers that
  * come right up to the eyes.
  */
