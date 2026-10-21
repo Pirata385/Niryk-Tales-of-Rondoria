@@ -128,6 +128,11 @@
   font-size: 22px;
   line-height: 1;
 }
+.icon-btn svg {
+  width: 28px;
+  height: 28px;
+  overflow: visible;
+}
 
 /* crosshair: a thin ring with a dot, white with an ink edge so it reads on sky and grass */
 .crosshair {
@@ -253,6 +258,91 @@
   opacity: 0;
 }
 
+/* combat feedback (game/Effects.ts) */
+.fx {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.dmg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: #fffaf0;
+  text-shadow: 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 2px 0 var(--ink), 0 -2px 0 var(--ink), 2px 2px 0 var(--ink), -2px 2px 0 var(--ink);
+  will-change: transform, opacity;
+}
+.dmg-player {
+  color: #ff7a6a;
+}
+.dmg-crit {
+  color: #ffd76a;
+  font-size: 30px;
+}
+.wolf-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 66px;
+  height: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 5px;
+  background: #3e2131;
+  box-shadow: 0 1px 3px #0009;
+  overflow: hidden;
+  will-change: transform;
+}
+.wolf-bar .fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  background: linear-gradient(#ff8a66, #d8402f 70%);
+}
+.warn-glyph {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  background: radial-gradient(#ff7a4a, #e0402a);
+  color: #fffaf0;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 24px;
+  text-align: center;
+  text-shadow: 0 1px 0 var(--ink);
+  box-shadow: 0 0 0 2px #ffd28a88, 0 2px 6px #0008;
+  will-change: transform;
+}
+.hurt {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, #0000 52%, #c8282899 100%);
+}
+.hurt.on {
+  animation: hurt 0.55s ease-out;
+}
+@keyframes hurt {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.death-info {
+  margin: -4px 0 14px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
 /* modal panels */
 .modal-back {
   position: absolute;
@@ -275,6 +365,61 @@
 .menu-list {
   display: grid;
   gap: 8px;
+}
+.modal.equipment {
+  width: min(94vw, 440px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.modal h2.sub {
+  margin: 6px 0 0;
+  font-size: 17px;
+}
+.slot-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  background: #1b142466;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px #6e4a3166;
+}
+.slot-row .grow {
+  flex: 1;
+  min-width: 0;
+}
+.slot-row .item-name {
+  font-weight: 700;
+}
+.slot-row small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+}
+.item-icon {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: radial-gradient(#3a2c40, #1b1424);
+  border: 2px solid var(--rim);
+}
+.item-icon.empty {
+  opacity: 0.45;
+}
+.item-icon svg {
+  width: 34px;
+  height: 34px;
+}
+.btn.small {
+  min-height: 40px;
+  padding: 6px 12px;
+  font-size: 15px;
 }
 .death {
   text-align: center;

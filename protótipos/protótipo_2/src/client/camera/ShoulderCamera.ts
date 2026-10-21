@@ -71,6 +71,9 @@ export class ShoulderCamera {
   private aspect = 16 / 9;
   private readonly smoothPivot = new THREE.Vector3();
   private hasPivot = false;
+  /** Camera shake (0..1, decays) and its clock. */
+  private shakeAmount = 0;
+  private shakeTime = 0;
 
   constructor(private readonly world: CameraWorld) {
     this.camera = new THREE.PerspectiveCamera(RIG.fov3p, 16 / 9, 0.05, 420);
@@ -99,6 +102,11 @@ export class ShoulderCamera {
 
   toggleMode(): void {
     this.setMode(this.mode === '1p' ? '3p' : '1p');
+  }
+
+  /** A short shake (0..1): a bite taken, a hit landed. */
+  shake(amount: number): void {
+    this.shakeAmount = Math.min(1, Math.max(this.shakeAmount, amount));
   }
 
   /** The horizontal look direction (where the character faces and walks "forward"). */
@@ -155,7 +163,18 @@ export class ShoulderCamera {
     this.camera.position.copy(_third).lerp(fpPos, k);
     this.camera.near = k > 0.5 ? 0.04 : 0.08;
     this.camera.updateProjectionMatrix();
-    this.camera.lookAt(_look.copy(this.camera.position).add(_dir));
+    _look.copy(this.camera.position).add(_dir);
+    if (this.shakeAmount > 0.002) {
+      // a quick jitter of the look point that dies out in a fraction of a second
+      this.shakeTime += dt;
+      const a = this.shakeAmount * this.shakeAmount * 0.045;
+      const t = this.shakeTime * 60;
+      _look.x += Math.sin(t * 1.1) * a;
+      _look.y += Math.sin(t * 1.37 + 1.3) * a;
+      _look.z += Math.sin(t * 0.93 + 2.1) * a;
+      this.shakeAmount *= Math.exp(-dt * 9);
+    }
+    this.camera.lookAt(_look);
     this.camera.updateMatrixWorld();
   }
 

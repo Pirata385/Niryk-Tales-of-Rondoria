@@ -258,11 +258,12 @@ export class CharacterView {
     return this.shot?.name ?? null;
   }
 
-  /** Brief white flash when hit (0..1). */
+  /** Brief warm-white flash when hit (0..1, fading). */
   flash(amount: number): void {
-    if (amount === this.flashAmount) return;
-    this.flashAmount = amount;
-    for (const list of this.slots.values()) for (const m of list) m.emissive.setScalar(amount * 0.6);
+    const a = Math.round(amount * 20) / 20; // material writes only when the step changes
+    if (a === this.flashAmount) return;
+    this.flashAmount = a;
+    for (const list of this.slots.values()) for (const m of list) m.emissive.setRGB(a * 0.45, a * 0.38, a * 0.32);
   }
 
   /** Effective weight of every clip playing (tests and debugging). */
