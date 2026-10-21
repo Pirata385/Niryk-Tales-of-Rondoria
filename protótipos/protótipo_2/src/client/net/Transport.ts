@@ -19,4 +19,6 @@ export interface TransportDebug {
   teleport(x: number, z: number): void;
   /** Every wolf of the world: the client itself only hears about the ones near the player. */
   wolves(): { id: number; x: number; z: number; hp: number }[];
+  /** Drops the local player dead (the death screen and the respawn). */
+  kill(): void;
 }

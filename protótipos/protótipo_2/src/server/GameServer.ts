@@ -308,20 +308,24 @@ export class GameServer {
     p.lastCombat = this.time;
     this.events.push({ e: 'damage', target: p.id, source: from.id, amount: final, x: quantize(p.x), z: quantize(p.z) });
     if (p.hp <= 0) {
-      p.hp = 0;
-      p.dead = true;
-      p.swing = null;
-      p.stun = 0;
-      p.respawnAt = this.time + RESPAWN_DELAY;
-      this.setAnim(p, 'Death', true);
-      this.events.push({ e: 'death', id: p.id });
-      for (const w of this.wolves) if (w.target === p.id) this.startReturn(w);
+      this.killPlayer(p);
       return;
     }
     if (!p.swing) {
       p.stun = HIT_STUN;
       this.setAnim(p, 'Hit', true);
     }
+  }
+
+  private killPlayer(p: Player): void {
+    p.hp = 0;
+    p.dead = true;
+    p.swing = null;
+    p.stun = 0;
+    p.respawnAt = this.time + RESPAWN_DELAY;
+    this.setAnim(p, 'Death', true);
+    this.events.push({ e: 'death', id: p.id });
+    for (const w of this.wolves) if (w.target === p.id) this.startReturn(w);
   }
 
   private respawn(p: Player): void {
@@ -570,6 +574,12 @@ export class GameServer {
 
   debugWolves(): readonly Wolf[] {
     return this.wolves;
+  }
+
+  /** Drops a player dead on the spot (tools: the death screen and the respawn). */
+  debugKill(client: string): void {
+    const p = this.players.get(client);
+    if (p && !p.dead) this.killPlayer(p);
   }
 
   debugTeleport(client: string, x: number, z: number): void {

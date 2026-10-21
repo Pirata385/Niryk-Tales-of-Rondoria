@@ -62,6 +62,12 @@ export class Input {
     // ---------------------------------------------------------------- keyboard
     on('keydown', (e) => {
       const k = e.key.toLowerCase();
+      // browsers release the pointer lock on Esc by themselves; some (headless, embedded views) only
+      // deliver the key, so release it here too - and an Esc that frees the mouse does nothing else
+      if (k === 'escape' && this.locked) {
+        this.releaseLock();
+        return;
+      }
       if (!this.keys.has(k)) this.onKey(k);
       this.keys.add(k);
       if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'tab'].includes(k)) e.preventDefault();

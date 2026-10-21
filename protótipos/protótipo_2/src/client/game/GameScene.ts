@@ -252,6 +252,7 @@ async function enterWorld(
   // single-file build); the rest only on the dev server (tools/e2e.mjs, tools/shoot.mjs) or with
   // ?debug. Getters, so nothing is allocated per frame.
   const hooks = {
+    scene: 'game',
     get ready() {
       return views.has(client.myId) && views.get(client.myId)!.placed;
     },
@@ -322,6 +323,10 @@ async function enterWorld(
         cam.setLook(Math.atan2(x - p.x, z - p.z), cam.pitch);
       },
       respawn: () => client.send({ t: 'respawn' }),
+      kill: () => transport.debug?.kill(),
+      get appearance() {
+        return { ...appearance };
+      },
       /** Stops the clock (server and animations) while the page keeps drawing: steady screenshots. */
       freeze: (on: boolean) => {
         frozen = on;

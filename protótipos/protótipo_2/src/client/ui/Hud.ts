@@ -208,12 +208,12 @@ export class Hud {
       else void document.documentElement.requestFullscreen?.().catch(() => {});
       this.closeModal();
     };
-    const fresh = el('button', 'btn', S.hud.newCharacter);
+    const fresh = el('button', 'btn new-character', S.hud.newCharacter);
     fresh.onclick = () => {
       this.closeModal();
       this.h.onNewCharacter();
     };
-    const close = el('button', 'btn', S.hud.close);
+    const close = el('button', 'btn close-btn', S.hud.close);
     close.onclick = () => this.closeModal();
     list.append(fresh, full, close);
     panel.append(el('h2', '', S.hud.menu), list);
@@ -280,7 +280,7 @@ export class Hud {
       row.append(txt, b);
       panel.append(row);
     }
-    const close = el('button', 'btn', S.hud.close);
+    const close = el('button', 'btn close-btn', S.hud.close);
     close.onclick = () => this.closeModal();
     panel.append(close);
   }

@@ -1,20 +1,35 @@
-// End-to-end check of the style slice in a real browser (Chromium + SwiftShader WebGL): load,
-// walk forward, strafe, back-pedal, run, look around, attack (two-hit combo), toggle first person,
-// on desktop (keyboard + mouse), phone portrait and phone landscape (touch: joystick, look drag,
-// buttons, no page zoom). Fails on any console error.
+// End-to-end check of the prototype in a real browser (Chromium + SwiftShader WebGL), on desktop
+// (keyboard + mouse), phone portrait and phone landscape (touch: taps, joystick, look drag):
+//   1. the character creator: Harpin options (plumes, its hair palette and styles), preview clips,
+//      Aleatório, the name check, then the viewport's pick (desktop Humano, phone Harpin, phone
+//      landscape Humana) and Entrar no mundo;
+//   2. the village: walk, strafe, back-pedal and run (an open meadow), look around;
+//   3. equipment: the panel (I or the bag), equip the Guard armor, close;
+//   4. a sword combo, then a fight at a wolf den (debug teleport) until a wolf dies;
+//   5. the death screen and the respawn at the plaza;
+//   6. first person and back;
+//   7. desktop: Novo personagem in the menu, back to the creator, a Harpin into the world.
+// No page zoom on touch; fails on any console error.
 //
-//   node tools/e2e.mjs                  (screenshots of each step go to .shots/e2e_*.png)
+//   node tools/e2e.mjs                  (screenshots of the steps go to .shots/e2e_*.png)
 //   SHOTS=desktop node tools/e2e.mjs
 //   Q=high node tools/e2e.mjs           (full quality; the default `low` keeps SwiftShader quick)
 import { mkdirSync } from 'node:fs';
 import { VIEWPORTS, launch, startServer } from './shoot.mjs';
 
-const QUERY = `?play&debug&q=${process.env.Q ?? 'low'}`;
+const QUERY = `?debug&q=${process.env.Q ?? 'low'}`;
+/** The character each viewport walks into the world with. */
+const PICKS = {
+  desktop: { race: 'human', gender: 'm', name: 'Aldren' },
+  phone: { race: 'harpin', gender: 'f', name: 'Lyra' },
+  phone_land: { race: 'human', gender: 'f', name: 'Mirela' },
+};
+const HARPIN_BLUE = '#3f72c4';
 
 const state = (page) =>
   page.evaluate(() => {
     const n = window.__niryk;
-    return { me: n.me, time: n.time, view: n.view, oneShot: n.oneShot, draws: n.info?.calls, tris: n.info?.triangles };
+    return { me: n.me, time: n.time, view: n.view, oneShot: n.oneShot, draws: n.info?.calls, tris: n.info?.triangles, kills: n.kills, dead: n.dead };
   });
 
 function check(cond, msg) {
@@ -44,6 +59,9 @@ async function until(page, pred, seconds, what) {
     await page.waitForTimeout(100);
   }
 }
+
+/** Waits for a condition on window.__niryk evaluated in the page (wall clock). */
+const waitHook = (page, fn, arg, timeout = 180_000) => page.waitForFunction(fn, arg, { timeout, polling: 100 });
 
 /**
  * Runs `act` (which starts some input), waits `seconds` of game time, runs `stop`, and returns the
@@ -109,6 +127,62 @@ async function touchDrag(cdp, id, x, y, dx, dy) {
 }
 const touchEnd = (cdp) => cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 
+/** The creator: tries the Harpin options and the preview, then makes `pick` and enters the world. */
+async function createCharacter(page, pick, touch, shot, opts = {}) {
+  const press = (sel) => (touch ? page.locator(sel).first().tap() : page.locator(sel).first().click());
+  const preview = () => page.evaluate(() => ({ ...window.__niryk.preview, app: window.__niryk.appearance }));
+  const model = (m) => waitHook(page, (want) => window.__niryk?.scene === 'creator' && window.__niryk.preview.model === want && window.__niryk.ready, m);
+  await waitHook(page, () => window.__niryk?.scene === 'creator' && window.__niryk.ready === true);
+  if (opts.expectName) check((await preview()).app.name === opts.expectName, `the creator opens with the saved character (${opts.expectName})`);
+
+  if (!opts.quick) {
+    // Harpin: plumes, its own hair palette and styles
+    await press('[data-field="race"] [data-value="harpin"]');
+    await model(`harpin_${(await preview()).app.gender}`);
+    const harpinUi = await page.evaluate(() => ({
+      plume: document.querySelectorAll('[data-field="plumeColor"]').length,
+      hair: document.querySelectorAll('[data-field="hairColor"] .swatch').length,
+      styles: [...document.querySelectorAll('[data-field="hairStyle"] [data-value]')].map((b) => b.dataset.value),
+    }));
+    check(harpinUi.plume === 1 && harpinUi.hair === 7 && harpinUi.styles.join() === 'espetado,crista,plumado', `Harpin: plume colors, 7 hair colors, styles ${harpinUi.styles.join('/')}`);
+    await press(`[data-field="plumeColor"] [data-value="${HARPIN_BLUE}"]`);
+    await press('[data-field="hairStyle"] [data-value="crista"]');
+    let p = await preview();
+    check(p.app.race === 'harpin' && p.app.plumeColor === HARPIN_BLUE && p.app.hairStyle === 'crista', `picks plumes and a crest (preview ${p.model}${p.placeholder ? ', stand-in model' : ''})`);
+    // the preview clips
+    await press('.preview-ui [data-mode="walk"]');
+    await waitHook(page, () => window.__niryk.preview.mode === 'walk');
+    await press('.preview-ui [data-mode="attack"]');
+    await waitHook(page, () => window.__niryk.preview.oneShot?.startsWith('Attack'));
+    check(true, 'the preview walks and attacks');
+    await shot('0_creator_harpin');
+    // a random look is always a valid one, and fills an empty name
+    await press('.creator .actions .btn:not(.primary)');
+    p = await preview();
+    check(p.app.name.length >= 2, `Aleatório rolls a look and a name (${p.app.race} ${p.app.gender}, ${p.app.name})`);
+    // the name is required
+    await page.fill('#creator-name', '');
+    await press('.creator .actions .primary');
+    check((await page.textContent('.creator .error')).length > 0, 'an empty name is refused');
+    await press('.preview-ui [data-mode="idle"]');
+  }
+
+  // the pick for this run
+  await press(`[data-field="race"] [data-value="${pick.race}"]`);
+  await press(`[data-field="gender"] [data-value="${pick.gender}"]`);
+  await model(`${pick.race}_${pick.gender}`);
+  if (pick.race === 'human') {
+    const n = await page.evaluate(() => [document.querySelectorAll('[data-field="plumeColor"]').length, document.querySelectorAll('[data-field="hairColor"] .swatch').length]);
+    check(n[0] === 0 && n[1] === 8, 'Humano: no plumes, 8 hair colors');
+  }
+  await page.fill('#creator-name', pick.name);
+  await shot(`0_creator_${pick.race}_${pick.gender}`);
+  await press('.creator .actions .primary');
+  await waitHook(page, () => window.__niryk?.scene === 'game' && window.__niryk.ready === true && !!window.__niryk.me);
+  const a = await page.evaluate(() => window.__niryk.appearance);
+  check(a.race === pick.race && a.gender === pick.gender && a.name === pick.name, `enters the world as ${pick.name} (${pick.race} ${pick.gender})`);
+}
+
 async function run(browser, base, vpName, info) {
   const vp = VIEWPORTS[vpName];
   const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, ...vp });
@@ -121,21 +195,16 @@ async function run(browser, base, vpName, info) {
   let loaded = false;
   const touch = vp.hasTouch;
   const shot = (step) => page.screenshot({ path: `.shots/e2e_${vpName}_${step}.png`, timeout: 240_000 });
+  const pick = PICKS[vpName];
   console.log(`\n[${vpName}]`);
 
-  // 1. load: straight into the clearing
+  // 1. the creator, then into the village
   await page.goto(base + QUERY);
-  await page.waitForFunction(() => window.__niryk?.ready === true && window.__niryk.me, null, { timeout: 180_000 });
   loaded = true;
+  await createCharacter(page, pick, touch, shot);
   let s = await state(page);
   check(s.me.hp === 100 && s.view.mode === '3p', `in the village, 3rd person, full health (draws=${s.draws}, tris=${s.tris})`);
-  await shot('1_start');
-  // the movement checks need room: an open meadow by the village (facing back toward it)
-  await page.evaluate(([x, z, yaw]) => {
-    window.__niryk.teleport(x, z);
-    window.__niryk.setLook(yaw, -0.14);
-  }, [info.open.x, info.open.z, info.open.yaw]);
-  await gameWait(page, 0.4);
+  await shot('1_village');
 
   const cdp = touch ? await ctx.newCDPSession(page) : null;
   const W = vp.width;
@@ -153,8 +222,32 @@ async function run(browser, base, vpName, info) {
       else for (const k of keys) await page.keyboard.up(k);
     },
   });
+  const tapAt = async (sel, id = 9) => {
+    const b = await page.locator(sel).boundingBox();
+    const p = { x: b.x + b.width / 2, y: b.y + b.height / 2, id };
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [p] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  };
+  /** The mouse captured (desktop): click the middle of the view, which only captures it. */
+  const capture = async () => {
+    if (touch) return;
+    await page.mouse.click(W / 2, H / 2);
+    await page.waitForTimeout(300);
+  };
+  const release = async () => {
+    if (touch) return;
+    if ((await state(page)).view.locked) {
+      await page.keyboard.press('Escape');
+      await waitHook(page, () => !window.__niryk.view.locked);
+    }
+  };
 
-  // 2. walk forward, strafe right, back-pedal, run (speeds in game time)
+  // 2. walk forward, strafe right, back-pedal, run (speeds in game time), on an open meadow
+  await page.evaluate(([x, z, yaw]) => {
+    window.__niryk.teleport(x, z);
+    window.__niryk.setLook(yaw, -0.14);
+  }, [info.open.x, info.open.z, info.open.yaw]);
+  await gameWait(page, 0.4);
   let m = mover(['w'], 0, -0.6);
   let r = await measure(page, m.act, m.stop);
   check(r.speed > 1.5 && r.speed < 2.2 && r.fwd > 0.9, `walks forward at ${r.speed.toFixed(2)} m/s (forward ${r.fwd.toFixed(2)})`);
@@ -172,20 +265,18 @@ async function run(browser, base, vpName, info) {
   }, m.stop);
   check(r.speed > 4.0 && r.fwd > 0.9, `runs at ${r.speed.toFixed(2)} m/s`);
 
-  // 3. look around: mouse (pointer lock, or a drag where it is unavailable) or a drag on the right half
+  // look around: mouse (pointer lock, or a drag where it is unavailable) or a drag on the right half
   s = await state(page);
   const yaw0 = s.view.yaw;
   if (touch) {
     await touchDrag(cdp, 2, W * 0.75, H * 0.45, -W * 0.18, 0);
     await touchEnd(cdp);
   } else {
-    await page.mouse.click(W / 2, H / 2); // captures the mouse
-    await page.waitForTimeout(300);
+    await capture();
     s = await state(page);
     if (s.view.locked) {
       await page.mouse.move(W / 2 - 120, H / 2, { steps: 6 });
     } else {
-      // no pointer lock here: drag to look
       await page.mouse.move(W / 2, H / 2);
       await page.mouse.down();
       await page.mouse.move(W / 2 - 120, H / 2, { steps: 6 });
@@ -199,18 +290,30 @@ async function run(browser, base, vpName, info) {
   await until(page, (x) => Math.abs(wrap(x.me.yaw - x.view.yaw)) < 0.05, 2, 'the body to face the camera');
   check(true, 'the body turned to face the camera');
 
+  // 3. equipment: open the panel, wear the Guard armor, close it
+  if (touch) await page.locator('.bag-btn').tap();
+  else await page.keyboard.press('i');
+  await waitHook(page, () => window.__niryk.panel === 'equipment');
+  check(!(await state(page)).view.locked, `${touch ? 'the bag' : 'I'} opens the equipment panel (the mouse is free)`);
+  const eq0 = await page.evaluate(() => window.__niryk.equipment);
+  check(eq0.weapon === 'sword_iron' && eq0.armor === null && eq0.items.includes('armor_guard'), 'the sword is worn, the armor is in the bag');
+  await page.locator('[data-item="armor_guard"] [data-action="equip"]')[touch ? 'tap' : 'click']();
+  await waitHook(page, () => window.__niryk.equipment.armor === 'armor_guard' && window.__niryk.equipment.armorParts.length > 0);
+  const eq1 = await page.evaluate(() => window.__niryk.equipment);
+  check(!eq1.items.includes('armor_guard') && (await page.locator('[data-slot="armor"] [data-action="unequip"]').count()) === 1, `wears the Guard armor (${eq1.armorParts[0] === 'placeholder' ? `${eq1.armorParts.length} stand-in plates` : eq1.armorParts.join(', ')})`);
+  await shot('3_equipment');
+  await page.locator('.modal.equipment .close-btn')[touch ? 'tap' : 'click']();
+  await waitHook(page, () => window.__niryk.panel === null);
+  check(true, 'closes the panel');
+  await capture();
+
   // 4. attack: two presses make the combo (the second inside the first swing's chain window)
-  // touch: a finger straight on the ⚔ button (CDP is quicker than a locator tap: the combo has a window)
-  const btn = touch ? await page.locator('.attack-btn').boundingBox() : null;
   const attack = async () => {
-    if (touch) {
-      const p = { x: btn.x + btn.width / 2, y: btn.y + btn.height / 2, id: 9 };
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [p] });
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    } else {
+    if (touch) await tapAt('.attack-btn');
+    else if ((await state(page)).view.locked) {
       await page.mouse.down();
       await page.mouse.up();
-    }
+    } else await page.evaluate(() => window.__niryk.attack());
   };
   await attack();
   s = await until(page, (x) => x.me.swing === 'Attack1', 2, 'Attack1');
@@ -234,16 +337,76 @@ async function run(browser, base, vpName, info) {
     }
   }
   check(chained, 'a second press chains the combo (Attack2)');
-  await shot('3_attack');
   await until(page, (x) => x.me.swing === null, 2, 'the swing to end');
 
-  // 5. first person and back
+  // 5. a wolf den: face the nearest wolf and fight until one falls
+  const den = info.dens[0];
+  const dd = Math.hypot(den.x, den.z);
+  const near = [den.x - (den.x / dd) * 9, den.z - (den.z / dd) * 9];
+  await page.evaluate(([x, z]) => window.__niryk.teleport(x, z), near);
+  await gameWait(page, 0.3);
+  let fightShot = false;
+  let died = false;
+  const t0 = (await state(page)).time;
+  for (;;) {
+    const f = await page.evaluate(() => {
+      const k = window.__niryk;
+      const me = k.me;
+      let best = null;
+      let bd = Infinity;
+      for (const w of k.nearWolves) {
+        const d = Math.hypot(w.x - me.x, w.z - me.z);
+        if (w.hp > 0 && d < bd) {
+          bd = d;
+          best = w;
+        }
+      }
+      if (best && !k.dead) k.lookAt(best.x, best.z);
+      return { best, dist: bd, kills: k.kills, dead: k.dead, time: k.time, telegraph: k.nearWolves.some((w) => w.telegraph), bitten: k.events.some((e) => e.e === 'damage' && e.target !== e.source && k.nearWolves.every((w) => w.id !== e.target)) };
+    });
+    if (f.kills > 0) break;
+    if (f.dead) {
+      died = true;
+      break;
+    }
+    if (f.time - t0 > 90) throw new Error('no wolf fell in 90 s of game time');
+    if (f.best && f.dist < 2.9) await attack();
+    if (f.telegraph && !fightShot) {
+      fightShot = true;
+      await shot('4_fight');
+    }
+    await gameWait(page, 0.08);
+  }
+  s = await state(page);
+  check(s.kills > 0 || died, died ? 'fell to the pack before a kill (the death screen follows)' : `killed a wolf at the den (hp ${s.me.hp}/100)`);
+  if (died && s.kills === 0) throw new Error('the pack won: no wolf killed');
+  const bitten = await page.evaluate(() => window.__niryk.events.filter((e) => e.e === 'damage' && window.__niryk.nearWolves.every((w) => w.id !== e.target)).length);
+  console.log(`  ..  bites taken in the last events: ${bitten}`);
+
+  // 6. the death screen and the respawn at the plaza
+  await release();
+  if (!died) await page.evaluate(() => window.__niryk.kill());
+  await waitHook(page, () => !!document.querySelector('.death button'));
+  check(await page.locator('.death button').isDisabled(), 'the death screen shows, the respawn waits a moment');
+  await shot('5_death');
+  await waitHook(page, () => !document.querySelector('.death button')?.disabled, undefined, 240_000);
+  await page.locator('.death button')[touch ? 'tap' : 'click']();
+  s = await until(page, (x) => !x.dead && x.me.hp === 100, 3, 'the respawn');
+  check(Math.hypot(s.me.x - info.spawn.x, s.me.z - info.spawn.z) < 1, 'Renascer na vila: back at the plaza with full health');
+  await capture();
+
+  // 7. first person and back (walking on the open meadow)
+  await page.evaluate(([x, z, yaw]) => {
+    window.__niryk.teleport(x, z);
+    window.__niryk.setLook(yaw, -0.14);
+  }, [info.open.x, info.open.z, info.open.yaw]);
+  await gameWait(page, 0.4);
   if (touch) await page.locator('.view-btn').tap();
   else await page.keyboard.press('v');
   s = await until(page, (x) => x.view.mode === '1p' && x.view.fp === 1, 2, 'first person');
   check(s.view.fov > 60, `V / 1ª switches to first person (fov ${s.view.fov.toFixed(0)}°)`);
   await gameWait(page, 0.3);
-  await shot('4_first_person');
+  await shot('6_first_person');
   m = mover(['w'], 0, -0.6);
   r = await measure(page, m.act, m.stop, 0.6);
   check(r.fwd > 0.9, `walks forward in first person (${r.speed.toFixed(2)} m/s)`);
@@ -252,7 +415,7 @@ async function run(browser, base, vpName, info) {
   await until(page, (x) => x.view.mode === '3p' && x.view.fp === 0, 2, 'third person');
   check(true, 'and back to third person');
 
-  // 6. touch: the page never zooms or scrolls (pinch spread on the canvas)
+  // 8. touch: the page never zooms or scrolls (pinch spread on the canvas)
   if (touch) {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: W * 0.4, y: H * 0.4, id: 5 }, { x: W * 0.6, y: H * 0.6, id: 6 }] });
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: W * 0.2, y: H * 0.2, id: 5 }, { x: W * 0.8, y: H * 0.8, id: 6 }] });
@@ -261,7 +424,12 @@ async function run(browser, base, vpName, info) {
     const vv = await page.evaluate(() => ({ scale: window.visualViewport?.scale ?? 1, sx: window.scrollX, sy: window.scrollY }));
     check(vv.scale === 1 && vv.sx === 0 && vv.sy === 0, `no page zoom or scroll (scale ${vv.scale})`);
   } else {
-    await page.keyboard.press('Escape'); // releases the mouse
+    // 9. Novo personagem: back to the creator (the saved character), a Harpin into the world
+    await release();
+    await page.locator('.menu-btn').click();
+    await page.locator('.new-character').click();
+    await createCharacter(page, { race: 'harpin', gender: 'm', name: 'Argnar' }, false, shot, { quick: true, expectName: pick.name });
+    await shot('7_harpin');
   }
 
   await ctx.close();
@@ -273,7 +441,7 @@ async function main() {
   const which = (process.env.SHOTS ?? 'desktop,phone,phone_land').split(',');
   const { server, base } = await startServer();
   const info = await worldInfo(server);
-  console.log(`open spot ${info.open.x.toFixed(1)}, ${info.open.z.toFixed(1)}`);
+  console.log(`open spot ${info.open.x.toFixed(1)}, ${info.open.z.toFixed(1)}; den ${info.dens[0].x.toFixed(1)}, ${info.dens[0].z.toFixed(1)}`);
   const browser = await launch();
   let failed = false;
   try {

@@ -20,6 +20,7 @@ export class LocalTransport implements Transport {
   readonly debug: TransportDebug = {
     teleport: (x, z) => this.server.debugTeleport(CLIENT_ID, x, z),
     wolves: () => this.server.debugWolves().map((w) => ({ id: w.id, x: w.x, z: w.z, hp: Math.ceil(w.hp) })),
+    kill: () => this.server.debugKill(CLIENT_ID),
   };
 
   /** The world is memoized per seed, so the client building the same one does not generate it twice. */
