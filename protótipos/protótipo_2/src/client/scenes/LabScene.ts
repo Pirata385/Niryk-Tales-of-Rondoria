@@ -29,6 +29,7 @@ const LOCO: Record<string, [number, number]> = {
  *   &turn=35                       how far the character is turned from facing the camera (deg)
  *   &dist=1.6 &h=1.35 &fov=35      camera distance, aim height and vertical field of view
  *   &fp                            first-person setup (head hidden, arms in the ready pose)
+ *   &armor                         wearing the Guard armor
  */
 export async function runLabScene(renderer: Renderer, appearance: Appearance): Promise<void> {
   const q = new URLSearchParams(location.search);
@@ -45,6 +46,7 @@ export async function runLabScene(renderer: Renderer, appearance: Appearance): P
 
   const char = await CharacterView.create(appearance);
   await equip(char, 'weapon', 'sword_iron');
+  if (q.has('armor')) await equip(char, 'armor', 'armor_guard');
   scene.add(char.root);
   const { x, z, yaw } = world.spawn;
   const gy = world.height(x, z);

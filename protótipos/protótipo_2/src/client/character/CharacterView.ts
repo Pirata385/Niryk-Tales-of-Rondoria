@@ -135,6 +135,8 @@ export class CharacterView {
   readonly eyeOffset = new THREE.Vector3(0, 0.1, 0.07);
   private readonly arms: { upper: THREE.Object3D; fore: THREE.Object3D; hand: THREE.Object3D; left: boolean }[] = [];
   private readonly weaponSocket: THREE.Object3D | null;
+  /** Every named node's rest transform relative to the model (bind pose, before any clip). */
+  private readonly rest = new Map<string, THREE.Matrix4>();
   appearance: Appearance;
 
   private constructor(model: THREE.Object3D, clips: THREE.AnimationClip[], appearance: Appearance, rig: PlaceholderRig | null) {
@@ -144,6 +146,11 @@ export class CharacterView {
     this.placeholder = rig !== null;
     this.root.add(model);
     this.head = model.getObjectByName('Head') ?? null;
+    model.updateMatrixWorld(true);
+    const toModel = model.matrixWorld.clone().invert();
+    model.traverse((o) => {
+      if (o.name && !this.rest.has(o.name)) this.rest.set(o.name, toModel.clone().multiply(o.matrixWorld));
+    });
     const meshes: THREE.Mesh[] = [];
     model.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
@@ -277,6 +284,21 @@ export class CharacterView {
   /** Finds a bone or socket by name (e.g. Socket_Weapon_R). */
   attachPoint(name: string): THREE.Object3D | undefined {
     return this.model.getObjectByName(name);
+  }
+
+  /** The node's rest transform relative to the model (bind pose), or undefined if it has none. */
+  restMatrix(name: string): THREE.Matrix4 | undefined {
+    return this.rest.get(name);
+  }
+
+  /** The body's skeleton (null for the placeholder, whose parts hang on plain joints). */
+  get skeleton(): THREE.Skeleton | null {
+    let found: THREE.Skeleton | null = null;
+    this.model.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (!found && m.isSkinnedMesh && !m.userData.isOutline) found = m.skeleton;
+    });
+    return found;
   }
 
   update(dt: number): void {

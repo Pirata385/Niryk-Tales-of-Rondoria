@@ -7,7 +7,7 @@ import { CollisionWorld } from '@shared/world/collision';
 import { worldForSeed } from '@shared/world/worldCache';
 import { ShoulderCamera, type ViewMode } from '../camera/ShoulderCamera';
 import { CharacterView, type OneShot } from '../character/CharacterView';
-import { equip } from '../character/equipment';
+import { equip, equippedParts } from '../character/equipment';
 import { WolfView } from '../character/WolfView';
 import { Input } from '../input/Input';
 import type { Transport } from '../net/Transport';
@@ -304,7 +304,8 @@ async function enterWorld(
         return !me || me.hp <= 0 || me.anim === 'Death';
       },
       get equipment() {
-        return { ...client.equipment, items: [...client.items] };
+        const mine = views.get(client.myId)?.char;
+        return { ...client.equipment, items: [...client.items], armorParts: mine ? equippedParts(mine, 'armor') : [], weaponParts: mine ? equippedParts(mine, 'weapon') : [] };
       },
       get panel() {
         return hud.panelKind;
