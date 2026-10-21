@@ -638,6 +638,20 @@
   pointer-events: auto;
   min-width: 84px;
 }
+.creator .framing-ui {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  gap: 4px;
+  pointer-events: auto;
+}
+.creator .framing-ui .btn {
+  min-width: 72px;
+  min-height: 40px;
+  padding: 6px 10px;
+  font-size: 15px;
+}
 .creator .preview-hint {
   flex-basis: 100%;
   text-align: center;
@@ -681,6 +695,10 @@
   }
   .creator .preview-hint {
     display: none;
+  }
+  .creator .framing-ui {
+    top: max(8px, env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
   }
 }
 /* phones in landscape: a narrower title, the panel keeps the left part */

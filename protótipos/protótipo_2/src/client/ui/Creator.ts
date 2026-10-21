@@ -52,14 +52,22 @@ const smooth = (a: number, b: number, x: number) => {
 };
 
 type PreviewMode = 'idle' | 'walk' | 'attack';
+/** Preview framing: the whole body, or a close-up of the face (head and shoulders). */
+type Framing = 'body' | 'face';
+/**
+ * How far the preview is turned from facing the camera (radians): a 3/4 view, wider for a
+ * Harpin so its folded wings and the tail read beside the body.
+ */
+const TURN: Record<Race, number> = { human: -0.45, harpin: -0.85 };
 /** One preview combo: Attack1, Attack2 chained, a breath, again. */
 const COMBO_LOOP = ATTACKS.Attack1.duration + ATTACKS.Attack2.duration + 0.9;
 
 /**
  * Character creator: race, gender, skin, hair style and color, plume color (Harpins), eyes, tunic
  * and name, with a live 3D preview of the character standing in a corner of the clearing (the
- * game's toon look), framed in the free part of the screen. Drag turns it, the wheel or a pinch
- * zooms toward the face; Parado / Andar / Atacar preview the clips. Resolves with its dispose.
+ * game's toon look), framed in the free part of the screen. Drag turns it; Corpo / Rosto frame the
+ * whole body or the face (choosing hair or eyes closes in by itself, the wheel or a pinch zooms
+ * in between); Parado / Andar / Atacar preview the clips. Resolves with its dispose.
  */
 export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => void): Promise<() => void> {
   const saved = loadSavedCharacter();
@@ -109,9 +117,13 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
 
   let view: CharacterView | null = null;
   let viewKey = '';
-  /** Character's turn away from facing the camera (radians), and the zoom (1 full body .. 0.35 face). */
-  let turn = -0.45;
-  let zoom = 1;
+  /** Character's turn away from facing the camera (radians). */
+  let turn = TURN[app.race];
+  /** 0 = the whole body .. 1 = the face close-up; eased toward its goal. */
+  let closeup = 0;
+  let closeupGoal = 0;
+  /** Eye height over the feet (smoothed: the idle breathes). */
+  let eyeY = 0;
   /** Time into the preview combo (s); negative: start a new one now. */
   let comboT = -1;
   let building = Promise.resolve();
@@ -234,6 +246,8 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
         app = { ...d, name: app.name, gender: app.gender, skin: app.skin, eyeColor: app.eyeColor, clothColor: app.clothColor };
         plumeLinked = r !== 'harpin';
         clothRolled = null;
+        turn = TURN[r];
+        setFraming('body');
         update();
       }, 'race'),
       h('div', 'race-info', S.creator.raceInfo[app.race]),
@@ -244,11 +258,13 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
         const hairStyle = app.hairStyle === defaultAppearance(app.race, app.gender).hairStyle ? d.hairStyle : app.hairStyle;
         app = { ...app, gender: g, hairStyle };
         clothRolled = null;
+        setFraming('body');
         update();
       }, 'gender'),
       swatches(S.creator.skin, SKIN_TONES, app.skin, (c) => ((app = { ...app, skin: c }), update()), 'skin'),
       seg<string>(S.creator.hair, HAIR_STYLES[app.race], app.hairStyle, (s) => HAIR_STYLE_LABELS[s], (s) => {
         app = { ...app, hairStyle: s };
+        setFraming('face');
         update();
       }, 'hairStyle'),
     );
@@ -256,6 +272,7 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
     options.append(
       swatches(S.creator.hairColor, hairColors, app.hairColor, (c) => {
         app = { ...app, hairColor: c, plumeColor: plumeLinked && app.race === 'harpin' ? c : app.plumeColor };
+        setFraming('face');
         update();
       }, 'hairColor'),
     );
@@ -270,15 +287,21 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
         swatches(S.creator.plume, Object.values(HARPIN_COLORS), app.plumeColor, (c) => {
           plumeLinked = false;
           app = { ...app, plumeColor: c };
+          setFraming('body'); // wings, tail and legs
           update();
         }, 'plumeColor', link),
       );
     }
     options.append(
-      swatches(S.creator.eyes, EYE_COLORS, app.eyeColor, (c) => ((app = { ...app, eyeColor: c }), update()), 'eyeColor'),
+      swatches(S.creator.eyes, EYE_COLORS, app.eyeColor, (c) => {
+        app = { ...app, eyeColor: c };
+        setFraming('face');
+        update();
+      }, 'eyeColor'),
       swatches(S.creator.cloth, CLOTH_COLORS, app.clothColor, (c) => {
         clothChosen = true;
         app = { ...app, clothColor: c };
+        setFraming('body');
         update();
       }, 'clothColor'),
     );
@@ -309,6 +332,30 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
   }
   previewUi.append(h('div', 'preview-hint', S.creator.previewHint));
 
+  // Corpo | Rosto: the framing (choosing hair or eyes closes in on the face by itself)
+  const framingUi = h('div', 'framing-ui');
+  framingUi.dataset.field = 'framing';
+  const framingButtons = new Map<Framing, HTMLButtonElement>();
+  for (const [f, label] of [
+    ['body', S.creator.framing.body],
+    ['face', S.creator.framing.face],
+  ] as [Framing, string][]) {
+    const b = h('button', 'btn', label);
+    b.dataset.value = f;
+    b.onclick = () => setFraming(f);
+    framingButtons.set(f, b);
+    framingUi.append(b);
+  }
+  root.append(framingUi);
+  function setFraming(f: Framing): void {
+    closeupGoal = f === 'face' ? 1 : 0;
+    syncFraming();
+  }
+  function syncFraming(): void {
+    for (const [f, b] of framingButtons) b.classList.toggle('selected', (closeupGoal > 0.5) === (f === 'face'));
+  }
+  syncFraming();
+
   function applyMode(): void {
     for (const [m, b] of modeButtons) b.classList.toggle('selected', m === mode);
     view?.setVelocity(0, mode === 'walk' ? WALK_SPEED : 0);
@@ -319,6 +366,8 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
     const name = app.name.trim() || S.creator.names[Math.floor(Math.random() * S.creator.names.length)];
     nameInput.value = name;
     app = { ...randomAppearance(Math.random), name };
+    turn = TURN[app.race];
+    setFraming('body');
     clothChosen = false;
     clothRolled = app.clothColor;
     plumeLinked = app.plumeColor === app.hairColor;
@@ -360,7 +409,7 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
     if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinch > 0 && d > 0) zoom = THREE.MathUtils.clamp(zoom * (pinch / d), 0.35, 1);
+      if (pinch > 0 && d > 0) setCloseup(closeupGoal + Math.log(d / pinch) * 1.6);
       pinch = d;
     }
   };
@@ -370,8 +419,13 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
   };
   const wheel = (e: WheelEvent) => {
     e.preventDefault();
-    zoom = THREE.MathUtils.clamp(zoom * Math.exp(e.deltaY * 0.0012), 0.35, 1);
+    setCloseup(closeupGoal - e.deltaY * 0.0016);
   };
+  function setCloseup(v: number): void {
+    closeupGoal = THREE.MathUtils.clamp(v, 0, 1);
+    closeup = closeupGoal; // a wheel or a pinch follows the hand at once
+    syncFraming();
+  }
   ctx.canvas.addEventListener('pointerdown', down);
   ctx.canvas.addEventListener('wheel', wheel, { passive: false });
   addEventListener('pointermove', move);
@@ -391,31 +445,43 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
   /**
    * Frames the character in the part of the screen the panel leaves free (right of it on wide
    * screens, above the bottom sheet in portrait), through a view offset: the camera keeps looking
-   * straight at the character, only the image is shifted.
+   * straight at the character, only the image is shifted. `closeup` blends the whole body (with a
+   * Harpin's wings) into head and shoulders around the eyes.
    */
   const target = new THREE.Vector3();
-  function placeCamera(): void {
+  const eye = new THREE.Vector3();
+  function placeCamera(dt: number): void {
     const W = innerWidth;
     const H = innerHeight;
     const r = side.getBoundingClientRect();
     const portrait = H > W;
     const x0 = portrait ? 0 : Math.min(W * 0.6, r.right);
     const y1 = (portrait ? Math.max(H * 0.25, r.top) : H) - previewUi.offsetHeight - 10;
+    // the framing buttons sit over the top of the free area
+    const y0 = Math.min(y1 - 80, framingUi.getBoundingClientRect().bottom + 4);
     const fw = W - x0;
-    const fh = Math.max(80, y1);
+    const fh = Math.max(80, y1 - y0);
     const harpin = app.race === 'harpin';
-    const subjectH = 1.95;
+    const subjectH = harpin ? 2.0 : 1.92;
     const subjectW = harpin ? 1.5 : 0.95;
     const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const distH = ((subjectH * 1.12) / (2 * tanV)) * (H / fh);
-    const distW = ((subjectW * 1.2) / (2 * tanV * (W / H))) * (W / fw);
-    const face = (1 - zoom) / 0.65;
-    const dist = Math.max(distH, distW, 2) * zoom;
-    target.set(stand.x, standY + THREE.MathUtils.lerp(subjectH * 0.5, 1.5, face), stand.z);
-    camera.position.set(target.x - dirX * dist, target.y + dist * 0.07, target.z - dirZ * dist);
+    const fit = (h: number, w: number) => Math.max(((h * 1.12) / (2 * tanV)) * (H / fh), ((w * 1.2) / (2 * tanV * (W / H))) * (W / fw));
+    const body = Math.max(fit(subjectH, subjectW), 2);
+    // head and shoulders (a Harpin's wing wrists rise beside the head)
+    const face = Math.max(fit(0.6, harpin ? 0.85 : 0.64), 0.75);
+    closeup += (closeupGoal - closeup) * (1 - Math.exp(-dt * 7));
+    const k = closeup * closeup * (3 - 2 * closeup);
+    const dist = THREE.MathUtils.lerp(body, face, k);
+    if (view) {
+      const y = view.eyeWorld(eye).y - standY;
+      eyeY = eyeY ? eyeY + (y - eyeY) * (1 - Math.exp(-dt * 4)) : y;
+    }
+    const faceY = (eyeY || 1.58) - 0.07; // the eyes a little over the middle of the close-up
+    target.set(stand.x, standY + THREE.MathUtils.lerp(subjectH * 0.5, faceY, k), stand.z);
+    camera.position.set(target.x - dirX * dist, target.y + dist * THREE.MathUtils.lerp(0.07, 0.02, k), target.z - dirZ * dist);
     camera.lookAt(target);
     camera.aspect = W / H;
-    camera.setViewOffset(W, H, W / 2 - (x0 + W) / 2, H / 2 - y1 / 2, W, H);
+    camera.setViewOffset(W, H, W / 2 - (x0 + W) / 2, H / 2 - (y0 + y1) / 2, W, H);
     camera.updateProjectionMatrix();
   }
 
@@ -431,7 +497,7 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
       return { ...app, name: nameInput.value };
     },
     get preview() {
-      return { mode, model: viewKey, placeholder: view?.placeholder ?? null, oneShot: view?.oneShot ?? null };
+      return { mode, model: viewKey, placeholder: view?.placeholder ?? null, oneShot: view?.oneShot ?? null, framing: closeupGoal > 0.5 ? 'face' : 'body', closeup };
     },
   };
 
@@ -454,7 +520,7 @@ export async function runCreator(ctx: AppContext, onStart: (a: Appearance) => vo
       }
       view.update(dt);
     }
-    placeCamera();
+    placeCamera(dt);
     sky.update(camera);
     worldView.update(camera, feet);
     ctx.renderer.render(scene, camera);

@@ -27,6 +27,7 @@ export const S = {
     random: 'Aleatório',
     start: 'Entrar no mundo',
     preview: { idle: 'Parado', walk: 'Andar', attack: 'Atacar' },
+    framing: { body: 'Corpo', face: 'Rosto' },
     previewHint: 'Arraste para girar',
     nameError: 'Escolha um nome de 2 a 16 letras.',
     loading: 'Preparando o personagem…',
