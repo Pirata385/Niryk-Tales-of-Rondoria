@@ -29,11 +29,34 @@ O visual cartoon na linha Hades combina:
 
 As imagens de `docs/art/references/` (raiz do repositório) inspiram as **ideias**, não o estilo dos modelos.
 
-## Personagens: lisos e heroicos
+## Personagens: RPG anime, lisos
 
-- **Proporção:** a mesma do protótipo 1, cerca de 6,5 cabeças, heroica e estilizada.
-- **Formas:** silhuetas fortes e formas grandes e legíveis. Ângulos estilizados no rosto, nas mãos e nos
-  ombros, sobre superfícies **lisas**.
+**Decisão do dono em 21/10/2026**, depois de testar a fatia de estilo:
+- o ambiente e a ambientação foram aprovados;
+- os personagens passam a seguir uma linha de **RPG anime**, como Genshin Impact e Tales of;
+- o único inimigo é o **lobo**.
+
+- **Rosto anime:**
+  - olhos grandes e expressivos (íris com reflexo, linha superior marcada, cílios no feminino);
+  - nariz e boca pequenos, queixo fino, bochecha suave, crânio proporcionalmente maior;
+  - normais do rosto suavizadas em direção a uma esfera, o truque clássico do anime, para a
+    sombra no rosto ficar limpa e chapada;
+  - contorno mais fino no rosto.
+- **Cabelo:** mechas definidas com pontas, franja emoldurando o rosto e faixa de brilho (o "anel de
+  anjo").
+- **Proporção e roupas:**
+  - 6,5 a 7 cabeças, com pernas longas;
+  - masculino atlético e feminino mais esguio, de cintura marcada;
+  - roupa de aventureiro com mais desenho: gola em camadas, acabamentos de cor, bolsa no cinto,
+    luvas ou braçadeiras e botas com dobra;
+  - tudo por slots de cor.
+- **Harpins** na mesma linha anime, com o lore do GDD:
+  - asas enormes de penas;
+  - pernas de águia cobertas de plumas, com garras;
+  - cauda longa de mamífero com plumas;
+  - penas nas têmporas;
+  - cabelo e plumas só em branco, preto, cinza, verde, azul, vermelho e amarelo.
+- **Formas:** silhuetas fortes e formas grandes e legíveis sobre superfícies **lisas**.
 - **Sem caroços:**
   - Usar poucas formas grandes com uniões amplas, nunca "músculos" feitos de bolinhas.
   - Malha fina, suavização com preservação de volume (Taubin) e normais suaves.
@@ -112,12 +135,13 @@ Modelos: `../Pyram3D/projects/niryk/protótipo_2/` (scripts novos) → `exports/
    - câmera sobre o ombro e 1ª pessoa;
    - andar, correr, andar de lado e atacar, no desktop e no celular;
    - publicado num link para o dono aprovar.
-2. **Depois da aprovação:**
-   - Harpin (asas, cauda, pernas de águia);
-   - criador;
-   - vila com casas novas;
-   - lobo e combate;
-   - armadura.
+2. **Protótipo completo (fatia aprovada em 21/10; personagens refeitos no estilo RPG anime):**
+   - Humanos e Harpins, masculino e feminino;
+   - criador de personagem com as mesmas opções do protótipo 1;
+   - vila com casas novas, poço, feira e postes;
+   - lobos em matilhas, com aviso antes do bote, barras de vida e renascimento;
+   - espada e Armadura do Guarda nos quatro corpos;
+   - celular.
 3. **Fechamento:** build de arquivo único, Pages em `/prototipo-2/` e relatório.
 
 Fase de protótipo: o crítico está pausado. Mantenha verdes o typecheck, os testes e o e2e no desktop, e
