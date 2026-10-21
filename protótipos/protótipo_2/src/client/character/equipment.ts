@@ -91,23 +91,27 @@ async function loadArmor(view: CharacterView, model: string): Promise<THREE.Obje
   const skeleton = view.skeleton;
   const gltf = skeleton ? await loadModelOrNull(name) : null;
   if (!gltf || !skeleton) return armorPlates(view);
-  // re-bind every skinned mesh to the character's bones, matched by name
+  // re-bind every skinned mesh to the character's bones, matched by name (a Harpin has more bones
+  // than its armor: wings and tail; an armor bone the body lacks means a mismatched export)
   const byName = new Map(skeleton.bones.map((b) => [b.name, b]));
+  const sources: THREE.SkinnedMesh[] = [];
+  gltf.scene.traverse((o) => {
+    if ((o as THREE.SkinnedMesh).isSkinnedMesh) sources.push(o as THREE.SkinnedMesh);
+  });
+  const missing = [...new Set(sources.flatMap((m) => m.skeleton.bones.map((b) => b.name)).filter((n) => !byName.has(n)))];
+  if (missing.length) {
+    console.warn(`${name}: bones missing on the body (${missing.join(', ')}), wearing the stand-in plates`);
+    return armorPlates(view);
+  }
   const group = new THREE.Group();
   group.name = name;
-  gltf.scene.traverse((o) => {
-    const src = o as THREE.SkinnedMesh;
-    if (!src.isSkinnedMesh) return;
+  for (const src of sources) {
     const mesh = new THREE.SkinnedMesh(src.geometry, src.material);
     mesh.name = src.name;
-    const bones = src.skeleton.bones.map((b) => {
-      const bone = byName.get(b.name);
-      if (!bone) throw new Error(`armor bone ${b.name} missing on the character`);
-      return bone;
-    });
+    const bones = src.skeleton.bones.map((b) => byName.get(b.name)!);
     mesh.bind(new THREE.Skeleton(bones, src.skeleton.boneInverses), src.bindMatrix);
     group.add(mesh);
-  });
+  }
   prepare(group, true);
   view.model.add(group);
   return [group];

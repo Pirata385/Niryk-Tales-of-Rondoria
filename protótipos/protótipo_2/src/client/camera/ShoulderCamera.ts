@@ -129,6 +129,10 @@ export class ShoulderCamera {
     this.spot = spot;
   }
 
+  get shoulder(): ShoulderSpot {
+    return this.spot;
+  }
+
   /** A short shake (0..1): a bite taken, a hit landed. */
   shake(amount: number): void {
     this.shakeAmount = Math.min(1, Math.max(this.shakeAmount, amount));

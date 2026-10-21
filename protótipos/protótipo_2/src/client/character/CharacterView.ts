@@ -318,6 +318,44 @@ export class CharacterView {
     for (const list of this.slots.values()) for (const m of list) m.emissive.setRGB(a * 0.45, a * 0.38, a * 0.32);
   }
 
+  /** What the tests check on a body: slots, hair, wings, the fade and the first-person hiding. */
+  debugState(): {
+    placeholder: boolean;
+    plume: string | null;
+    plumeMaterials: number;
+    hair: string[];
+    wingBones: number;
+    fade: { center: number; hideHead: number; near: number[] };
+    hiddenInFirstPerson: number;
+  } {
+    const plume = this.slots.get('Plume') ?? [];
+    const hair: string[] = [];
+    let wingBones = 0;
+    let hidden = 0;
+    this.model.traverse((o) => {
+      if (o.name.startsWith('Hair_') && !o.parent?.name.startsWith('Hair_') && o.visible) hair.push(o.name);
+      if (/wing/i.test(o.name) && ((o as THREE.Bone).isBone || this.placeholder)) wingBones++;
+      if ((o as THREE.Mesh).isMesh && !o.userData.isOutline && !o.layers.isEnabled(0)) hidden++;
+    });
+    const f = this.fade;
+    return {
+      placeholder: this.placeholder,
+      plume: plume.length ? `#${plume[0].color.getHexString()}` : null,
+      plumeMaterials: plume.length,
+      hair,
+      wingBones,
+      fade: { center: f.uFadeCenter.value, hideHead: f.uHideHead.value, near: f.uFadeNear.value.toArray() },
+      hiddenInFirstPerson: hidden,
+    };
+  }
+
+  /** The color a slot is tinted with for an appearance (after the dark lift), as #rrggbb. */
+  static slotTint(a: Appearance, slot: 'Plume' | 'Hair' | 'Skin'): string {
+    const raw = { Plume: a.plumeColor, Hair: a.hairColor, Skin: a.skin }[slot];
+    const c = new THREE.Color(raw);
+    return `#${(slot === 'Skin' ? c : liftDark(c)).getHexString()}`;
+  }
+
   /** Effective weight of every clip playing (tests and debugging). */
   clipWeights(): Record<string, number> {
     const out: Record<string, number> = {};

@@ -1,14 +1,17 @@
 // End-to-end check of the prototype in a real browser (Chromium + SwiftShader WebGL), on desktop
 // (keyboard + mouse), phone portrait and phone landscape (touch: taps, joystick, look drag):
-//   1. the character creator: Harpin options (plumes, its hair palette and styles), preview clips,
-//      Aleatório, the name check, then the viewport's pick (desktop Humano, phone Harpin, phone
-//      landscape Humana) and Entrar no mundo;
+//   1. the character creator: Harpin options (plumes, its hair palette and styles), the Rosto
+//      close-up (picking hair closes in, Corpo goes back), preview clips, Aleatório, the name
+//      check, then the viewport's pick (desktop Humano, phone Harpin fêmea, phone landscape Humana)
+//      and Entrar no mundo; a Harpin is checked in the world (plume slot tinted, wings, the wider
+//      shoulder camera and the crosshair fade, first person hiding head, hair and temple feathers);
 //   2. the village: walk, strafe, back-pedal and run (an open meadow), look around;
 //   3. equipment: the panel (I or the bag), equip the Guard armor, close;
 //   4. a sword combo, then a fight at a wolf den (debug teleport) until a wolf dies;
 //   5. the death screen and the respawn at the plaza;
 //   6. first person and back;
-//   7. desktop: Novo personagem in the menu, back to the creator, a Harpin into the world.
+//   7. desktop: Novo personagem in the menu, back to the creator, a Harpin into the world (checked),
+//      then a Harpin fêmea (checked) and a Humana.
 // No page zoom on touch; fails on any console error.
 //
 //   node tools/e2e.mjs                  (screenshots of the steps go to .shots/e2e_*.png)
@@ -127,6 +130,28 @@ async function touchDrag(cdp, id, x, y, dx, dy) {
 }
 const touchEnd = (cdp) => cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 
+/**
+ * A Harpin in the world: the Plume slot carries the chosen color, it has wings and one hair style,
+ * its shoulder camera sits wider with the crosshair fade on, and first person hides the head
+ * nodes (head, hair, temple feathers) and drops what hangs on the head bone.
+ */
+async function harpinChecks(page, shot, tag) {
+  const body = () => page.evaluate(() => window.__niryk.body);
+  let b = await body();
+  check(b.plumeMaterials > 0 && b.plume === b.plumeTint, `Harpin: ${b.plumeMaterials} plume materials tinted ${b.plume}${b.placeholder ? ' (stand-in body)' : ''}`);
+  check(b.wingBones > 0 && b.hair.length === 1, `wings (${b.wingBones} wing nodes) and one hair style (${b.hair.join()})`);
+  check(b.shoulder.side > 0.5 && b.shoulder.height > 1.6 && b.fade.center > 0, `the shoulder camera sits higher and wider (${b.shoulder.height} m, ${b.shoulder.side} m) and the wings clear the crosshair (fade ${b.fade.center})`);
+  await page.evaluate(() => window.__niryk.setView('1p'));
+  await waitHook(page, () => window.__niryk.body?.fade.hideHead === 1);
+  b = await body();
+  check(b.hiddenInFirstPerson > 0 && b.fade.center === 0, `first person hides ${b.hiddenInFirstPerson} head meshes and drops what hangs on the head`);
+  await gameWait(page, 0.2);
+  if (shot) await shot(`${tag}_1p`);
+  await page.evaluate(() => window.__niryk.setView('3p'));
+  await waitHook(page, () => window.__niryk.body?.fade.hideHead === 0 && window.__niryk.body.fade.center > 0);
+  check(true, 'back in third person');
+}
+
 /** The creator: tries the Harpin options and the preview, then makes `pick` and enters the world. */
 async function createCharacter(page, pick, touch, shot, opts = {}) {
   const press = (sel) => (touch ? page.locator(sel).first().tap() : page.locator(sel).first().click());
@@ -149,6 +174,12 @@ async function createCharacter(page, pick, touch, shot, opts = {}) {
     await press('[data-field="hairStyle"] [data-value="crista"]');
     let p = await preview();
     check(p.app.race === 'harpin' && p.app.plumeColor === HARPIN_BLUE && p.app.hairStyle === 'crista', `picks plumes and a crest (preview ${p.model}${p.placeholder ? ', stand-in model' : ''})`);
+    await waitHook(page, () => window.__niryk.preview.framing === 'face' && window.__niryk.preview.closeup > 0.95);
+    check(true, 'picking hair closes in on the face (Rosto)');
+    await shot('0_creator_face');
+    await press('[data-field="framing"] [data-value="body"]');
+    await waitHook(page, () => window.__niryk.preview.framing === 'body' && window.__niryk.preview.closeup < 0.05);
+    check(true, 'Corpo frames the whole body again');
     // the preview clips
     await press('.preview-ui [data-mode="walk"]');
     await waitHook(page, () => window.__niryk.preview.mode === 'walk');
@@ -181,6 +212,7 @@ async function createCharacter(page, pick, touch, shot, opts = {}) {
   await waitHook(page, () => window.__niryk?.scene === 'game' && window.__niryk.ready === true && !!window.__niryk.me);
   const a = await page.evaluate(() => window.__niryk.appearance);
   check(a.race === pick.race && a.gender === pick.gender && a.name === pick.name, `enters the world as ${pick.name} (${pick.race} ${pick.gender})`);
+  if (pick.race === 'harpin') await harpinChecks(page, opts.quick ? null : shot, `1_${pick.race}_${pick.gender}`);
 }
 
 async function run(browser, base, vpName, info) {
@@ -424,12 +456,21 @@ async function run(browser, base, vpName, info) {
     const vv = await page.evaluate(() => ({ scale: window.visualViewport?.scale ?? 1, sx: window.scrollX, sy: window.scrollY }));
     check(vv.scale === 1 && vv.sx === 0 && vv.sy === 0, `no page zoom or scroll (scale ${vv.scale})`);
   } else {
-    // 9. Novo personagem: back to the creator (the saved character), a Harpin into the world
-    await release();
-    await page.locator('.menu-btn').click();
-    await page.locator('.new-character').click();
-    await createCharacter(page, { race: 'harpin', gender: 'm', name: 'Argnar' }, false, shot, { quick: true, expectName: pick.name });
-    await shot('7_harpin');
+    // 9. Novo personagem: back to the creator (the saved character), Harpins and a Humana into the world
+    let last = pick.name;
+    for (const next of [
+      { race: 'harpin', gender: 'm', name: 'Argnar' },
+      { race: 'harpin', gender: 'f', name: 'Aeris' },
+      { race: 'human', gender: 'f', name: 'Mirela' },
+    ]) {
+      await release();
+      await page.locator('.menu-btn').click();
+      await page.locator('.new-character').click();
+      await createCharacter(page, next, false, shot, { quick: true, expectName: last });
+      await gameWait(page, 0.3);
+      await shot(`7_${next.race}_${next.gender}`);
+      last = next.name;
+    }
   }
 
   await ctx.close();

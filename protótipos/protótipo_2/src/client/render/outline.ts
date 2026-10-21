@@ -117,6 +117,8 @@ void main() {
 `;
 
 const materials = new Map<string, THREE.ShaderMaterial>();
+/** A character's hull materials, per width (all its hulls share its fade uniforms). */
+const fadeMaterials = new WeakMap<FadeUniforms, Map<number, THREE.ShaderMaterial>>();
 
 /**
  * The hull material for a width multiplier (and wind settings, shared by reference with the
@@ -125,7 +127,7 @@ const materials = new Map<string, THREE.ShaderMaterial>();
  */
 export function outlineMaterial(width = 1, wind?: { value: THREE.Vector2 }, fade?: FadeUniforms): THREE.ShaderMaterial {
   const key = wind || fade ? '' : `w${width}`;
-  const cached = key ? materials.get(key) : undefined;
+  const cached = key ? materials.get(key) : fade && !wind ? fadeMaterials.get(fade)?.get(width) : undefined;
   if (cached) return cached;
   const mat = new THREE.ShaderMaterial({
     name: 'Outline',
@@ -143,7 +145,12 @@ export function outlineMaterial(width = 1, wind?: { value: THREE.Vector2 }, fade
     defines: { ...(wind ? { USE_WIND: '' } : {}), ...(fade ? { USE_FADE: '' } : {}) },
   });
   if (key) materials.set(key, mat);
-  else mat.userData.owned = true; // not shared: whoever drops the hull disposes it
+  else mat.userData.owned = true; // not shared across characters: whoever drops the hull disposes it
+  if (fade && !wind) {
+    const perWidth = fadeMaterials.get(fade) ?? new Map<number, THREE.ShaderMaterial>();
+    perWidth.set(width, mat);
+    fadeMaterials.set(fade, perWidth);
+  }
   return mat;
 }
 

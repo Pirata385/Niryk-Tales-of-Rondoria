@@ -28,6 +28,10 @@ const CHARACTER_RULES = [
   [/^Hair_/, 3000, 0.004],
   [/^Body/, 6500, 0.002],
   [/^Outfit/, 14000, 0.0015], // cloth sits 1-2 cm over the skin: keep it from sinking in
+  // Harpins: wing feathers are thin closed solids a couple of cm apart (a coarse error would fold
+  // them into each other or blunt their tips); plume locks on legs, tail and temples are pointed
+  [/wing|feather/i, 26000, 0.0006],
+  [/plume|tail|leg|feet|toe|claw|talon/i, 12000, 0.0012],
 ];
 const CHARACTER_DEFAULT = [8000, 0.003];
 /** Nature and props: never simplified (already authored to budget). */

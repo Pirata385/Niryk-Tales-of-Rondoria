@@ -331,6 +331,12 @@ async function enterWorld(
       get appearance() {
         return { ...appearance };
       },
+      /** The player's body as drawn: slots, hair, wings, fade, first-person hiding, camera spot. */
+      get body() {
+        const mine = views.get(client.myId)?.char;
+        if (!mine) return null;
+        return { ...mine.debugState(), plumeTint: CharacterView.slotTint(appearance, 'Plume'), shoulder: { ...cam.shoulder } };
+      },
       /** Stops the clock (server and animations) while the page keeps drawing: steady screenshots. */
       freeze: (on: boolean) => {
         frozen = on;
