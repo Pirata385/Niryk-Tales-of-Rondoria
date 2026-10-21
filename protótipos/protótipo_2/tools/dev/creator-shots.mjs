@@ -23,6 +23,11 @@ for (const p of picks) {
       for (const [field, value] of p.clicks) await page.click(`[data-field="${field}"] [data-value="${value}"]`);
       if (p.framing) await page.click(`[data-field="framing"] [data-value="${p.framing}"]`);
       await page.waitForFunction(() => window.__niryk.ready, null, { timeout: 120_000 });
+      // the framing eases in over a few (slow, software-rendered) frames
+      await page.waitForFunction(() => {
+        const v = window.__niryk.preview;
+        return Math.abs(v.closeup - (v.framing === 'face' ? 1 : 0)) < 0.02;
+      }, null, { timeout: 120_000 });
       if (p.mode) await page.click(`.preview-ui [data-mode="${p.mode}"]`);
     },
   });
