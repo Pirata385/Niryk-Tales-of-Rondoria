@@ -3,6 +3,7 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 import { bodyModel, type Appearance } from '@shared/appearance';
 import { BACKPEDAL_FACTOR, RUN_SPEED, WALK_SPEED } from '@shared/constants';
 import { loadModelOrNull } from '../core/assets';
+import { addFadeMask, fadeUniforms, type FadeUniforms } from '../render/fade';
 import { LAYERS } from '../render/look';
 import { addOutline } from '../render/outline';
 import { toonFromGltf } from '../render/toon';
@@ -21,8 +22,25 @@ const CLIP_SPEED: Record<Exclude<Loco, 'Idle'>, number> = {
 };
 /** Materials without ink: eyes and small dark details read better clean. */
 const NO_INK = /^(Eye|EyeWhite|Dark)/;
-/** Hidden in first person (the camera sits inside the head). */
-const FIRST_PERSON_HIDDEN = /^(Head_|Hair_)/;
+/**
+ * Hidden in first person (the camera sits inside the head): head, face and hair nodes and a
+ * Harpin's temple feathers. Whatever else hangs on the head bone (feathers merged into another
+ * mesh) is dropped by the fade's head mask.
+ */
+const FIRST_PERSON_HIDDEN = /^(Head_|Hair_)|temple/i;
+
+/**
+ * The local player's view fade (render/fade.ts), view depths in m. Third person: the wings, tail
+ * and hair clear a circle around the crosshair (radii in screen heights) and everything dissolves
+ * when a wall pushes the camera into the body. First person: only wing and tail feathers that
+ * come right up to the eyes.
+ */
+const VIEW_FADE = {
+  center: 0.9,
+  area: [0.06, 0.2] as const,
+  near3p: [0.28, 0.7, 0.5, 1.1] as const,
+  near1p: [0, 0, 0.12, 0.42] as const,
+};
 
 /** Slots the appearance does not choose (yet): trousers, leather, metal fittings, Harpin talons. */
 export const SLOT_DEFAULTS: Record<string, string> = {
@@ -94,7 +112,8 @@ export function disposeInstance(root: THREE.Object3D, geometries = false): void 
   root.traverse((o) => {
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;
-    if (!mesh.userData.isOutline) {
+    // shared hull materials stay (cached); a hull's own (a character's fade, wind) goes
+    if (!mesh.userData.isOutline || (mesh.material as THREE.Material).userData.owned) {
       if (Array.isArray(mesh.material)) for (const m of mesh.material) m.dispose();
       else mesh.material.dispose();
     }
@@ -137,6 +156,8 @@ export class CharacterView {
   private readonly weaponSocket: THREE.Object3D | null;
   /** Every named node's rest transform relative to the model (bind pose, before any clip). */
   private readonly rest = new Map<string, THREE.Matrix4>();
+  /** The screen-door fade of this character's materials and hulls (off unless setViewFade). */
+  readonly fade: FadeUniforms = fadeUniforms();
   appearance: Appearance;
 
   private constructor(model: THREE.Object3D, clips: THREE.AnimationClip[], appearance: Appearance, rig: PlaceholderRig | null) {
@@ -155,9 +176,12 @@ export class CharacterView {
     model.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
     });
+    const sources = new Set<THREE.Material>();
     for (const mesh of meshes) {
       const src = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
-      const t = rig ? (src as THREE.MeshToonMaterial) : toonFromGltf(src, { rim: 1, warm: src.name === 'Skin' ? 0.8 : 0 });
+      sources.add(src);
+      // one toon material per mesh (the placeholder's slot materials too: they get the fade)
+      const t = toonFromGltf(src, { rim: 1, warm: src.name === 'Skin' ? 0.8 : 0, fade: this.fade });
       const list = this.slots.get(t.name) ?? [];
       list.push(t);
       this.slots.set(t.name, list);
@@ -165,8 +189,10 @@ export class CharacterView {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       mesh.frustumCulled = false; // skinned bounds are unreliable when animated
-      if (!NO_INK.test(t.name) && !mesh.name.startsWith('Head_eye')) addOutline(mesh, { width: 1 });
+      addFadeMask(mesh, model, this.head);
+      if (!NO_INK.test(t.name) && !mesh.name.startsWith('Head_eye')) addOutline(mesh, { width: 1, fade: this.fade });
     }
+    if (rig) for (const m of sources) m.dispose(); // the placeholder's own slot materials, now replaced
     for (const side of ['Right', 'Left']) {
       const upper = model.getObjectByName(`${side}UpperArm`);
       const fore = model.getObjectByName(`${side}LowerArm`);
@@ -224,6 +250,7 @@ export class CharacterView {
   setFirstPerson(on: boolean): void {
     if (on === this.firstPerson) return;
     this.firstPerson = on;
+    this.fade.uHideHead.value = on ? 1 : 0;
     const layer = on ? LAYERS.fpHidden : 0;
     const apply = (o: THREE.Object3D) => {
       if (FIRST_PERSON_HIDDEN.test(o.name)) {
@@ -233,6 +260,24 @@ export class CharacterView {
       for (const c of o.children) apply(c);
     };
     apply(this.model);
+  }
+
+  /**
+   * The local player's view fade: `fp` is the first-person blend (0 third person .. 1 first
+   * person); null turns it off (remote players, the creator).
+   */
+  setViewFade(fp: number | null): void {
+    const f = this.fade;
+    if (fp === null) {
+      f.uFadeCenter.value = 0;
+      f.uFadeNear.value.set(0, 0, 0, 0);
+      return;
+    }
+    const third = fp < 0.5;
+    f.uFadeCenter.value = third ? VIEW_FADE.center * (1 - fp * 2) : 0;
+    f.uFadeArea.value.set(...VIEW_FADE.area);
+    const n = third ? VIEW_FADE.near3p : VIEW_FADE.near1p;
+    f.uFadeNear.value.set(n[0], n[1], n[2], n[3]);
   }
 
   /** The velocity in the character's own frame (m/s): `left` toward its +X, `forward` along +Z. */

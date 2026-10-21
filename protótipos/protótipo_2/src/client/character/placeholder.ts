@@ -215,22 +215,26 @@ export function buildPlaceholderHuman(opts: PlaceholderOptions = { race: 'human'
     tail = joint('Tail', 0, -0.02, -0.13, hips);
     tail.rotation.x = 2.25;
     const t = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.55, 6, 12).translate(0, 0.3, 0), mats.Plume);
-    t.name = 'Body_tail';
+    t.name = 'Tail_body';
     const tuft = new THREE.Mesh(merged([-0.35, 0, 0.35].map((a) => feather(0.06, 0.26, 0.3).rotateZ(a).translate(0, 0.58, 0))), mats.Plume);
-    tuft.name = 'Body_tail_tuft';
+    tuft.name = 'Tail_tuft';
     tail.add(t, tuft);
-    // big folded wings behind the shoulders, reaching past the hips
+    // huge folded wings (the proportions of the Harpin GLBs): seen from behind they cover the
+    // back, the wrists rise over the shoulders and the primaries hang down to the calves
+    const outline: [number, number][] = [
+      [0.02, 0.3], [0.17, 0.56], [0.36, 0.8], [0.42, 0.66], [0.39, 0.2], [0.32, -0.4], [0.22, -0.88],
+      [0.17, -0.7], [0.12, -0.74], [0.08, -0.5], [0.04, -0.52], [0.02, -0.1],
+    ];
     for (const side of [1, -1]) {
-      const w = joint(side > 0 ? 'WingL' : 'WingR', side * 0.12, 0.5, -0.16, chest);
-      w.rotation.set(-0.18, side * 0.4, side * 0.32);
-      const vane = new THREE.Mesh(
-        merged([
-          new THREE.SphereGeometry(0.5, 18, 12).scale(0.34, 1, 0.09).translate(side * 0.12, -0.28, 0),
-          ...[0, 1, 2].map((k) => feather(0.07, 0.36, 0.25).rotateZ(Math.PI + side * (0.1 + k * 0.18)).translate(side * (0.08 + k * 0.08), -0.62 + k * 0.08, -0.01)),
-        ]),
-        mats.Plume,
-      );
-      vane.name = 'Body_wing';
+      const w = joint(side > 0 ? 'LeftWing1' : 'RightWing1', side * 0.04, 0.3, -0.15, chest);
+      const shape = new THREE.Shape();
+      const pts = outline.map(([x, y]) => new THREE.Vector2(side * (x - 0.04), y - 0.3));
+      shape.moveTo(pts[0].x, pts[0].y);
+      shape.splineThru([...pts.slice(1), pts[0]]);
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.025, bevelSegments: 2, curveSegments: 6 });
+      geo.translate(0, 0, -0.02).rotateY(side * 0.32);
+      const vane = new THREE.Mesh(geo, mats.Plume);
+      vane.name = 'Wing_vane';
       w.add(vane);
       wings.push(w);
     }
@@ -296,7 +300,8 @@ export class PlaceholderRig {
       p.tail.rotation.z = Math.sin(this.t * 1.3) * 0.08 + Math.sin(w) * 0.12 * s;
       p.tail.rotation.x = 2.25 - run * 0.5;
     }
-    for (let i = 0; i < p.wings.length; i++) p.wings[i].rotation.x = -0.18 - run * 0.15 + Math.sin(this.t * 1.1 + i) * 0.02;
+    // the folded wings breathe a little and trail back when running
+    for (let i = 0; i < p.wings.length; i++) p.wings[i].rotation.x = 0.05 + run * 0.2 + Math.sin(this.t * 1.1 + i) * 0.02;
     if (!shot) return;
     if (shot.name === 'Attack1' || shot.name === 'Attack2') {
       const dur = shot.name === 'Attack1' ? 0.5 : 0.55;

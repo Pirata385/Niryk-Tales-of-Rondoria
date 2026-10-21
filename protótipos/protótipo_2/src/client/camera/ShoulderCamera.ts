@@ -38,6 +38,25 @@ export const RIG = {
   switchTime: 0.25,
 };
 
+/** Where the shoulder camera sits for a body (meters): pivot height, offset right, distance back. */
+export interface ShoulderSpot {
+  height: number;
+  side: number;
+  back: number;
+  sidePortrait: number;
+  backPortrait: number;
+}
+
+/**
+ * Per race: a Harpin's huge folded wings rise over its shoulders and spread right where the
+ * camera looks past them, so its camera sits a little higher, wider and farther back (what still
+ * covers the crosshair dissolves, see CharacterView.setViewFade).
+ */
+export const SHOULDER: Record<'human' | 'harpin', ShoulderSpot> = {
+  human: { height: RIG.height, side: RIG.side, back: RIG.back, sidePortrait: RIG.sidePortrait, backPortrait: RIG.backPortrait },
+  harpin: { height: 1.78, side: 0.68, back: 2.95, sidePortrait: 0.4, backPortrait: 3.55 },
+};
+
 const _dir = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _pivot = new THREE.Vector3();
@@ -71,6 +90,7 @@ export class ShoulderCamera {
   private aspect = 16 / 9;
   private readonly smoothPivot = new THREE.Vector3();
   private hasPivot = false;
+  private spot: ShoulderSpot = SHOULDER.human;
   /** Camera shake (0..1, decays) and its clock. */
   private shakeAmount = 0;
   private shakeTime = 0;
@@ -104,6 +124,11 @@ export class ShoulderCamera {
     this.setMode(this.mode === '1p' ? '3p' : '1p');
   }
 
+  /** The shoulder spot for the player's body (SHOULDER[race]). */
+  setShoulder(spot: ShoulderSpot): void {
+    this.spot = spot;
+  }
+
   /** A short shake (0..1): a bite taken, a hit landed. */
   shake(amount: number): void {
     this.shakeAmount = Math.min(1, Math.max(this.shakeAmount, amount));
@@ -134,7 +159,7 @@ export class ShoulderCamera {
     this.applyFov();
 
     // the pivot follows the feet; its height is smoothed a little (steps on bumpy ground)
-    _pivot.set(feet.x, feet.y + RIG.height, feet.z);
+    _pivot.set(feet.x, feet.y + this.spot.height, feet.z);
     if (!this.hasPivot || this.smoothPivot.distanceToSquared(_pivot) > 9) {
       this.smoothPivot.copy(_pivot);
       this.hasPivot = true;
@@ -150,8 +175,8 @@ export class ShoulderCamera {
 
     // third person: shoulder spot, closer when looking up (the ground is behind the camera)
     const up = THREE.MathUtils.smoothstep(this.pitch, 0, RIG.pitchMax3p);
-    const back = (this.portrait ? RIG.backPortrait : RIG.back) * (1 - 0.38 * up);
-    const side = this.portrait ? RIG.sidePortrait : RIG.side;
+    const back = (this.portrait ? this.spot.backPortrait : this.spot.back) * (1 - 0.38 * up);
+    const side = this.portrait ? this.spot.sidePortrait : this.spot.side;
     _want.copy(pivot).addScaledVector(_right, side).addScaledVector(_dir, -back);
     const free = this.clearance(pivot, _want);
     if (free < this.reach) this.reach = free;

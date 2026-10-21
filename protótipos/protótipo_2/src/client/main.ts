@@ -1,6 +1,6 @@
 import './style.css';
 import './ui/ui.css';
-import { CLOTH_COLORS, EYE_COLORS, HARPIN_COLORS, HUMAN_HAIR_COLORS, SKIN_TONES, type Appearance } from '@shared/appearance';
+import { CLOTH_COLORS, EYE_COLORS, HARPIN_COLORS, HUMAN_HAIR_COLORS, SKIN_TONES, defaultAppearance, type Appearance, type Gender, type Race } from '@shared/appearance';
 import { runGame, type AppContext, type TransportFactory } from './game/GameScene';
 import { LocalTransport } from './net/LocalTransport';
 import { pickQuality } from './render/quality';
@@ -33,6 +33,13 @@ const TUNICS: Record<string, string> = {
  * character was saved: tan skin, dark brown short hair, blue eyes and a wine tunic.
  */
 function defaultHero(): Appearance {
+  // ?corpo=harpin_f (tools): that body's default look instead
+  const body = /^(human|harpin)_(m|f)$/.exec(params.get('corpo') ?? '');
+  if (body) {
+    const a = defaultAppearance(body[1] as Race, body[2] as Gender);
+    const tunic = TUNICS[params.get('tunica') ?? ''];
+    return { ...a, name: S.defaultName, ...(tunic ? { clothColor: tunic } : {}) };
+  }
   return {
     name: S.defaultName,
     race: 'human',
@@ -66,7 +73,8 @@ async function boot(): Promise<void> {
   const renderer = new Renderer(canvas, touch, quality.maxPixelRatio);
   const scene = params.get('scene');
   const saved = loadSavedCharacter();
-  if (scene === 'lab') return runLabScene(renderer, params.has('tunica') ? defaultHero() : (saved ?? defaultHero()));
+  const forced = params.has('tunica') || params.has('corpo');
+  if (scene === 'lab') return runLabScene(renderer, forced ? defaultHero() : (saved ?? defaultHero()));
 
   const ctx: AppContext = { canvas, ui, renderer, touch, quality };
   let dispose: (() => void) | null = null;
@@ -80,7 +88,7 @@ async function boot(): Promise<void> {
     dispose = null;
     dispose = await runGame(ctx, a, makeTransport, () => void toCreator().catch(fatal));
   };
-  if (params.has('play')) await toGame(params.has('tunica') ? defaultHero() : (saved ?? defaultHero()));
+  if (params.has('play')) await toGame(forced ? defaultHero() : (saved ?? defaultHero()));
   else if (saved && scene !== 'creator') await toGame(saved);
   else await toCreator();
 }

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FADE_FRAGMENT_PARS, FADE_VERTEX, FADE_VERTEX_PARS, type FadeUniforms } from './fade';
 import { GRADE_GLSL, SHARED, WIND_GLSL, WIND_PARS_GLSL } from './look';
 
 export interface ToonOptions {
@@ -8,6 +9,8 @@ export interface ToonOptions {
   wind?: { sway: number; height: number } | null;
   /** 0..1: how much the shadow band turns warm (skin: light scattered under it, not a gray shade). */
   warm?: number;
+  /** Screen-door fade of a character's parts (render/fade.ts); the mesh needs its `fadeMask`. */
+  fade?: FadeUniforms;
 }
 
 /**
@@ -58,15 +61,19 @@ uniform float uRimStrength;
 ${GRADE_GLSL}
 `;
 
-/** Patches a MeshToonMaterial-based program with the toon light, the grade and (optionally) wind. */
-function patch(mat: THREE.MeshToonMaterial, rim: { value: number }, wind: { value: THREE.Vector2 }, warm: { value: number }): void {
+/**
+ * Patches a MeshToonMaterial-based program with the toon light, the grade and (optionally) wind
+ * and the screen-door fade.
+ */
+function patch(mat: THREE.MeshToonMaterial, rim: { value: number }, wind: { value: THREE.Vector2 }, warm: { value: number }, fade?: FadeUniforms): void {
   mat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, SHARED, { uRimStrength: rim, uWind: wind, uWarm: warm });
+    Object.assign(shader.uniforms, SHARED, { uRimStrength: rim, uWind: wind, uWarm: warm }, fade ?? {});
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\n${WIND_PARS_GLSL}`)
-      .replace('#include <begin_vertex>', `#include <begin_vertex>\n#ifdef USE_WIND\n${WIND_GLSL}\n#endif`);
+      .replace('#include <common>', `#include <common>\n${WIND_PARS_GLSL}\n#ifdef USE_FADE\n${FADE_VERTEX_PARS}\n#endif`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\n#ifdef USE_WIND\n${WIND_GLSL}\n#endif\n#ifdef USE_FADE\n${FADE_VERTEX}\n#endif`);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${FRAG_PARS}`)
+      .replace('#include <common>', `#include <common>\n${FRAG_PARS}\n#ifdef USE_FADE\n${FADE_FRAGMENT_PARS}\n#endif`)
+      .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n#ifdef USE_FADE\nnirykFade(vViewPosition.z);\n#endif')
       .replace('#include <lights_toon_fragment>', TOON_LIGHT)
       .replace('#include <lights_fragment_begin>', '')
       .replace('#include <lights_fragment_maps>', '')
@@ -87,11 +94,12 @@ export function toonMaterial(params: THREE.MeshToonMaterialParameters = {}, opts
   // three reads material.defines at compile time; the type only declares it on ShaderMaterial
   const withDefines = mat as THREE.MeshToonMaterial & { defines?: Record<string, string> };
   if (opts.wind) withDefines.defines = { ...withDefines.defines, USE_WIND: '' };
+  if (opts.fade) withDefines.defines = { ...withDefines.defines, USE_FADE: '' };
   const warm = { value: opts.warm ?? 0 };
   mat.userData.rim = rim;
   mat.userData.wind = wind;
   mat.userData.warm = warm;
-  patch(mat, rim, wind, warm);
+  patch(mat, rim, wind, warm, opts.fade);
   return mat;
 }
 

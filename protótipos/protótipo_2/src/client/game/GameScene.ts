@@ -5,7 +5,7 @@ import { WOLF } from '@shared/constants';
 import type { EntityState, Equipment, GameEvent } from '@shared/protocol';
 import { CollisionWorld } from '@shared/world/collision';
 import { worldForSeed } from '@shared/world/worldCache';
-import { ShoulderCamera, type ViewMode } from '../camera/ShoulderCamera';
+import { SHOULDER, ShoulderCamera, type ViewMode } from '../camera/ShoulderCamera';
 import { CharacterView, type OneShot } from '../character/CharacterView';
 import { equip, equippedParts } from '../character/equipment';
 import { WolfView } from '../character/WolfView';
@@ -127,6 +127,10 @@ async function enterWorld(
   scene.add(worldView.group);
 
   const cam = new ShoulderCamera(world);
+  const params = new URLSearchParams(location.search);
+  // ?semfade (tools: before/after shots): the human camera spot and no view fade, for any body
+  const viewFade = !params.has('semfade');
+  cam.setShoulder(SHOULDER[viewFade ? appearance.race : 'human']);
   const spawn = world.spawn;
   cam.setLook(spawn.yaw, -0.14);
 
@@ -454,7 +458,10 @@ async function enterWorld(
       v.anim = e.anim;
       v.animStart = e.animStart;
       syncEquipment(v, isMe ? client.equipment : e.equipment);
-      if (isMe) char.setFirstPerson(cam.fp > 0.55);
+      if (isMe) {
+        char.setFirstPerson(cam.fp > 0.55);
+        char.setViewFade(viewFade ? cam.fp : null);
+      }
       char.update(dt);
       char.flash(v.flash / FLASH_TIME);
       v.flash = Math.max(0, v.flash - dt);

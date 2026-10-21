@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FADE_FRAGMENT_PARS, FADE_VERTEX, FADE_VERTEX_PARS, type FadeUniforms } from './fade';
 import { SHARED, WIND_GLSL, WIND_PARS_GLSL } from './look';
 
 /**
@@ -63,6 +64,10 @@ uniform float uPixelRatio;
 uniform float uInkWidth;
 uniform vec3 uInkRange; // near (m), far (m), width scale far away
 uniform float uWidth;   // this hull's multiplier
+#ifdef USE_FADE
+${FADE_VERTEX_PARS}
+varying float vDepth;
+#endif
 
 void main() {
   vec3 objectNormal = smoothNormal;
@@ -85,6 +90,10 @@ void main() {
   float depth = -mvPosition.z;
   float px = uInkWidth * uPixelRatio * uWidth * mix(1.0, uInkRange.z, smoothstep(uInkRange.x, uInkRange.y, depth));
   gl_Position.xy += dirPx * px * 2.0 / uResolution * gl_Position.w;
+  #ifdef USE_FADE
+  ${FADE_VERTEX}
+  vDepth = depth;
+  #endif
   #include <fog_vertex>
 }
 `;
@@ -93,7 +102,14 @@ const FRAGMENT = /* glsl */ `
 #include <common>
 #include <fog_pars_fragment>
 uniform vec3 uInk;
+#ifdef USE_FADE
+${FADE_FRAGMENT_PARS}
+varying float vDepth;
+#endif
 void main() {
+  #ifdef USE_FADE
+  nirykFade(vDepth);
+  #endif
   gl_FragColor = vec4(uInk, 1.0);
   #include <colorspace_fragment>
   #include <fog_fragment>
@@ -104,10 +120,11 @@ const materials = new Map<string, THREE.ShaderMaterial>();
 
 /**
  * The hull material for a width multiplier (and wind settings, shared by reference with the
- * mesh's own material so both sway alike). Cached: hulls with the same settings share it.
+ * mesh's own material so both sway alike; and a character's fade, see render/fade.ts). Cached:
+ * hulls with the same settings share it.
  */
-export function outlineMaterial(width = 1, wind?: { value: THREE.Vector2 }): THREE.ShaderMaterial {
-  const key = wind ? '' : `w${width}`;
+export function outlineMaterial(width = 1, wind?: { value: THREE.Vector2 }, fade?: FadeUniforms): THREE.ShaderMaterial {
+  const key = wind || fade ? '' : `w${width}`;
   const cached = key ? materials.get(key) : undefined;
   if (cached) return cached;
   const mat = new THREE.ShaderMaterial({
@@ -121,10 +138,12 @@ export function outlineMaterial(width = 1, wind?: { value: THREE.Vector2 }): THR
       ...SHARED,
       uWidth: { value: width },
       uWind: wind ?? { value: new THREE.Vector2(0, 1) },
+      ...fade,
     },
-    defines: wind ? { USE_WIND: '' } : {},
+    defines: { ...(wind ? { USE_WIND: '' } : {}), ...(fade ? { USE_FADE: '' } : {}) },
   });
   if (key) materials.set(key, mat);
+  else mat.userData.owned = true; // not shared: whoever drops the hull disposes it
   return mat;
 }
 
@@ -132,6 +151,8 @@ export interface OutlineOptions {
   width?: number;
   /** Wind of the mesh's toon material (the hull sways with it). */
   wind?: { value: THREE.Vector2 };
+  /** The character's fade (the hull fades with its mesh). */
+  fade?: FadeUniforms;
 }
 
 /**
@@ -141,7 +162,7 @@ export interface OutlineOptions {
  */
 export function addOutline<T extends THREE.Mesh>(mesh: T, opts: OutlineOptions = {}): THREE.Mesh {
   ensureSmoothNormals(mesh.geometry);
-  const mat = outlineMaterial(opts.width ?? 1, opts.wind);
+  const mat = outlineMaterial(opts.width ?? 1, opts.wind, opts.fade);
   let hull: THREE.Mesh;
   const skinned = mesh as unknown as THREE.SkinnedMesh;
   const instanced = mesh as unknown as THREE.InstancedMesh;
