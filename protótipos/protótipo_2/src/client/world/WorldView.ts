@@ -19,8 +19,10 @@ export class WorldView {
     this.group.add(terrain.mesh, water.group, nature.group, grass.group);
   }
 
-  static async create(world: WorldData, grass: GrassOptions): Promise<WorldView> {
+  static async create(world: WorldData, grass: GrassOptions, ranges: { draw: number; ink: number } = { draw: 1, ink: 1 }): Promise<WorldView> {
     const [nature, g] = await Promise.all([NatureView.create(world.nature), Grass.create(world, grass)]);
+    nature.drawScale = ranges.draw;
+    nature.inkScale = ranges.ink;
     return new WorldView(new Terrain(world), new Water(world), nature, g);
   }
 

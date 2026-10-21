@@ -58,6 +58,9 @@ export class NatureView {
   private readonly order: number[] = [];
   private readonly dist: Float32Array;
   drawn = 0;
+  /** Multipliers of the draw and ink ranges (quality presets). */
+  drawScale = 1;
+  inkScale = 1;
 
   private constructor(placements: NaturePlacement[]) {
     this.group.name = 'Nature';
@@ -130,7 +133,7 @@ export class NatureView {
         const dx = sp[i * 4] - player.x;
         const dz = sp[i * 4 + 2] - player.z;
         const d = Math.sqrt(dx * dx + dz * dz);
-        if (d > range.draw + sp[i * 4 + 3]) continue;
+        if (d > range.draw * this.drawScale + sp[i * 4 + 3]) continue;
         if (d > SHADOW_RADIUS) {
           _sphere.center.set(sp[i * 4], sp[i * 4 + 1], sp[i * 4 + 2]);
           _sphere.radius = sp[i * 4 + 3];
@@ -144,7 +147,7 @@ export class NatureView {
       let nShadow = 0;
       for (let k = 0; k < order.length; k++) {
         const d = this.dist[order[k]];
-        if (d <= range.ink) nInk = k + 1;
+        if (d <= range.ink * this.inkScale) nInk = k + 1;
         if (d <= SHADOW_RADIUS) nShadow = k + 1;
       }
       for (const part of b.parts) {

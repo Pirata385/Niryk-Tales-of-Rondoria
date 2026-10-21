@@ -6,6 +6,8 @@ export interface ToonOptions {
   rim?: number;
   /** Wind sway: top displacement (m) and the asset's height (m). */
   wind?: { sway: number; height: number } | null;
+  /** 0..1: how much the shadow band turns warm (skin: light scattered under it, not a gray shade). */
+  warm?: number;
 }
 
 /**
@@ -31,7 +33,7 @@ const TOON_LIGHT = /* glsl */ `
     float b1 = smoothstep(uBands.x - aa, uBands.x + aa, ndl) * shade;
     float b2 = smoothstep(uBands.y - aa, uBands.y + aa, ndl) * shade;
     vec3 worldN = normalize((vec4(normal, 0.0) * viewMatrix).xyz);
-    vec3 tint = uShadow * (0.86 + 0.2 * worldN.y);
+    vec3 tint = mix(uShadow, uShadowWarm, uWarm) * (0.86 + 0.2 * worldN.y);
     tint = mix(tint, uMid, b1);
     tint = mix(tint, uLight, b2);
     toonColor = diffuseColor.rgb * tint;
@@ -48,6 +50,8 @@ const FRAG_PARS = /* glsl */ `
 uniform vec3 uLight;
 uniform vec3 uMid;
 uniform vec3 uShadow;
+uniform vec3 uShadowWarm;
+uniform float uWarm;
 uniform vec2 uBands;
 uniform vec3 uRimColor;
 uniform float uRimStrength;
@@ -55,9 +59,9 @@ ${GRADE_GLSL}
 `;
 
 /** Patches a MeshToonMaterial-based program with the toon light, the grade and (optionally) wind. */
-function patch(mat: THREE.MeshToonMaterial, rim: { value: number }, wind: { value: THREE.Vector2 }): void {
+function patch(mat: THREE.MeshToonMaterial, rim: { value: number }, wind: { value: THREE.Vector2 }, warm: { value: number }): void {
   mat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, SHARED, { uRimStrength: rim, uWind: wind });
+    Object.assign(shader.uniforms, SHARED, { uRimStrength: rim, uWind: wind, uWarm: warm });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${WIND_PARS_GLSL}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>\n#ifdef USE_WIND\n${WIND_GLSL}\n#endif`);
@@ -72,7 +76,7 @@ function patch(mat: THREE.MeshToonMaterial, rim: { value: number }, wind: { valu
         'vec3 outgoingLight = nirykGrade(toonColor) + totalEmissiveRadiance;',
       );
   };
-  mat.customProgramCacheKey = () => 'niryk-toon-1';
+  mat.customProgramCacheKey = () => 'niryk-toon-2';
 }
 
 /** A toon material (any MeshToonMaterial parameters: color, map, vertexColors, side...). */
@@ -83,9 +87,11 @@ export function toonMaterial(params: THREE.MeshToonMaterialParameters = {}, opts
   // three reads material.defines at compile time; the type only declares it on ShaderMaterial
   const withDefines = mat as THREE.MeshToonMaterial & { defines?: Record<string, string> };
   if (opts.wind) withDefines.defines = { ...withDefines.defines, USE_WIND: '' };
+  const warm = { value: opts.warm ?? 0 };
   mat.userData.rim = rim;
   mat.userData.wind = wind;
-  patch(mat, rim, wind);
+  mat.userData.warm = warm;
+  patch(mat, rim, wind, warm);
   return mat;
 }
 

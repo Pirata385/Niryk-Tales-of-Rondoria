@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "build:single": "node tools/raw-models.mjs && vite build --mode single && node tools/make-artifact.mjs",
+    "check:csp": "node tools/dev/check-csp.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

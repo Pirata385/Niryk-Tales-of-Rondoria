@@ -5,12 +5,18 @@ import * as THREE from 'three';
  * Colors are sRGB hex (three converts them to linear); tints multiply the albedo.
  */
 export const LOOK = {
-  /** Toward the sun (world): a low afternoon sun from the left-back of the spawn view. */
-  sunDir: new THREE.Vector3(-0.62, 0.58, -0.52).normalize(),
+  /**
+   * Toward the sun (world): an afternoon sun from the left and a little behind the spawn view
+   * (seed 1 looks toward -X-Z), so the hero's back and the clearing are lit and the shadows fall
+   * across the meadow to the right.
+   */
+  sunDir: new THREE.Vector3(-0.3, 0.62, 0.72).normalize(),
   /** Albedo multipliers of the three toon bands: warm light, a warm-neutral mid, a cool shadow. */
   light: new THREE.Color('#fff1d6').multiplyScalar(1.08),
   mid: new THREE.Color('#d9c6c8'),
   shadow: new THREE.Color('#7c86c4'),
+  /** The shadow band on skin (materials with `warm`): a rosy brown instead of the cool blue. */
+  shadowWarm: new THREE.Color('#b08690'),
   /** dot(N, L) where the bands change: shadow | mid | light. */
   bands: new THREE.Vector2(0.0, 0.32),
   rim: new THREE.Color('#ffe2b0'),
@@ -45,6 +51,7 @@ export const SHARED = {
   uLight: { value: LOOK.light },
   uMid: { value: LOOK.mid },
   uShadow: { value: LOOK.shadow },
+  uShadowWarm: { value: LOOK.shadowWarm },
   uBands: { value: LOOK.bands },
   uRimColor: { value: LOOK.rim },
   uInk: { value: LOOK.ink },

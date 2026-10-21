@@ -3,7 +3,7 @@ import { ITEMS, type EquipSlot } from '@shared/items';
 import { loadModelOrNull } from '../core/assets';
 import { addOutline } from '../render/outline';
 import { toonFromGltf } from '../render/toon';
-import { disposeInstance, type CharacterView } from './CharacterView';
+import { SLOT_DEFAULTS, disposeInstance, type CharacterView } from './CharacterView';
 import { buildPlaceholderSword } from './placeholder';
 
 /** Attached equipment objects per character (so they can be removed on unequip). */
@@ -18,7 +18,13 @@ function prepare(root: THREE.Object3D, fromGltf: boolean): void {
     if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
   });
   for (const mesh of meshes) {
-    if (fromGltf) mesh.material = toonFromGltf(Array.isArray(mesh.material) ? mesh.material[0] : mesh.material, { rim: 1 });
+    if (fromGltf) {
+      const mat = toonFromGltf(Array.isArray(mesh.material) ? mesh.material[0] : mesh.material, { rim: 1 });
+      // the GLB's slot materials are white (the detail is in the vertex colors): tint them
+      const tint = SLOT_DEFAULTS[mat.name];
+      if (tint) mat.color.set(tint);
+      mesh.material = mat;
+    }
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.frustumCulled = false;

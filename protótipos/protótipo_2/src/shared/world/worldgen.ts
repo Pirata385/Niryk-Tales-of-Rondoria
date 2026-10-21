@@ -89,6 +89,8 @@ export interface WorldData {
 }
 
 const TRAIL_HALF = 0.9;
+/** How far past a pond's shore its bank reaches (m). */
+const BANK = 3.2;
 const smooth = (a: number, b: number, x: number) => {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
@@ -144,11 +146,15 @@ export function generateWorld(seed: number, options: WorldOptions = CLEARING_WOR
     const h = baseHeight(x, z);
     for (const p of ponds) {
       const d = pondDistTo(p, x, z);
-      if (d > 2.4) continue;
-      // smooth bowl: the bank slopes down to just under the water at the shore, then deepens
-      const t = clamp01((2.4 - d) / 2.4);
-      const bowl = p.level - 0.22 - Math.max(0, -d) * 0.14;
-      return h + (bowl - h) * (t * t * (3 - 2 * t));
+      if (d > BANK) continue;
+      // the bank: one steady slope through the water line (the shore is exactly where pondDist
+      // is 0), deepening inside and dry above the water outside, melting into the meadow by
+      // BANK m out. The floor keeps the low side of a slope from dipping under the water.
+      const bank = p.level + d * (d < 0 ? 0.16 : 0.12);
+      const out = bank + (h - bank) * smooth(0.4, BANK, d);
+      if (d <= 0.15) return out;
+      const floor = p.level + 0.04 - smooth(BANK - 1.2, BANK, d) * Math.max(0, p.level + 0.04 - h);
+      return Math.max(out, floor);
     }
     return h;
   };

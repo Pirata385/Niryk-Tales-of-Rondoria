@@ -35,6 +35,8 @@ varying float vDepth;
 varying vec3 vWorld;
 void main() {
   float d = vDepth;
+  // the shore is where the depth crosses zero (interpolated), not the grid's edge
+  if (d < -0.004) discard;
   float aa = fwidth(d) + 0.002;
   vec3 col = mix(uShallow, uDeep, smoothstep(0.18 - aa, 0.18 + aa, d));
   col = mix(col, uDeep * 0.82, smoothstep(0.45 - aa, 0.45 + aa, d));

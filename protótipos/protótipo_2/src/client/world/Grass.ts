@@ -16,7 +16,13 @@ interface Tuft {
   z: number;
   scale: number;
   rot: number;
+  /** 0..1, fixed per tuft: which ones stay when the far grass thins out. */
+  pick: number;
 }
+
+/** Past THIN_FROM m the grass thins out to THIN_KEEP of the tufts at the edge of the radius. */
+const THIN_FROM = 12;
+const THIN_KEEP = 0.4;
 
 /** Tufts of one cell, per asset. */
 type Cell = Map<string, Tuft[]>;
@@ -106,7 +112,7 @@ export class Grass {
       const a = NATURE[name];
       let list = c!.get(name);
       if (!list) c!.set(name, (list = []));
-      list.push({ x, y: w.height(x, z) - 0.02, z, scale: rng.range(a.scale[0], a.scale[1]), rot: rng.range(-Math.PI, Math.PI) });
+      list.push({ x, y: w.height(x, z) - 0.02, z, scale: rng.range(a.scale[0], a.scale[1]), rot: rng.range(-Math.PI, Math.PI), pick: rng.next() });
     };
     const x0 = ix * CELL;
     const z0 = iz * CELL;
@@ -162,9 +168,12 @@ export class Grass {
           if (n >= cap) break;
           const d = Math.hypot(t.x - player.x, t.z - player.z);
           if (d > R) continue;
+          // thin out with distance (a far tuft covers few pixels): fewer, slightly bigger ones
+          const keep = d <= THIN_FROM ? 1 : 1 - (1 - THIN_KEEP) * Math.min(1, (d - THIN_FROM) / Math.max(1, R - THIN_FROM));
+          if (keep < 1 && t.pick > keep) continue;
           // shrink into the ground over the last 6 m
           const fade = Math.min(1, (R - d) / 6);
-          const s = t.scale * (fade * fade * (3 - 2 * fade));
+          const s = (t.scale * (fade * fade * (3 - 2 * fade))) / Math.sqrt(keep);
           if (s < 0.05) continue;
           _q.setFromAxisAngle(_up, t.rot);
           _b.compose(_p.set(t.x, t.y, t.z), _q, _s.setScalar(s));

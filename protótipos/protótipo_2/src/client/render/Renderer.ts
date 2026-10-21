@@ -13,6 +13,7 @@ export class Renderer {
   constructor(
     readonly canvas: HTMLCanvasElement,
     readonly touch: boolean,
+    maxPixelRatio?: number,
   ) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', stencil: false });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -20,7 +21,7 @@ export class Renderer {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.setClearColor(LOOK.fog);
-    this.maxPixelRatio = touch ? 1.75 : 2;
+    this.maxPixelRatio = maxPixelRatio ?? (touch ? 1.75 : 2);
   }
 
   resize(width: number, height: number, dpr: number): void {
