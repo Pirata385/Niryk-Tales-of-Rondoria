@@ -69,3 +69,10 @@ O que ficou cru. Nada aqui é urgente: são lembretes para quando formos polir.
 - Cada personagem tem os próprios materiais de casca (o esmaecimento é por personagem); os
   programas de shader continuam compartilhados.
 - Os testes no Chromium usam SwiftShader (1 a 2 s por quadro): o e2e roda em `?q=low`.
+
+## Rodada 3 (notas)
+
+- Lobo: de frente, o focinho aparece como um anel escuro (ponta do nariz). Revisar em `wolf.py`.
+- Tocas no meio do bosque denso: a colisão da câmera a aproxima tanto que a luta fica apertada.
+  Testar empurrar a câmera para cima, em vez de para frente, quando há troncos atrás.
+- Humanos: manchas na gola e no pescoço e facetas escuras no cabelo (`human_f_face.png`).

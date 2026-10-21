@@ -36,8 +36,8 @@ const CHARACTER_RULES = [
 const CHARACTER_DEFAULT = [8000, 0.003];
 /** Harpin bodies carry the plumed eagle legs, scaled toes and claws in Body: about twice the skin. */
 const HARPIN_RULES = [[/^Body/, 14000, 0.0015]];
-/** Nature and props: never simplified (already authored to budget). */
-const KINDS = { characters: 'character', equipment: 'prop', nature: 'nature' };
+/** Nature, props and creatures: never simplified (already authored to budget). */
+const KINDS = { characters: 'character', creatures: 'creature', equipment: 'prop', buildings: 'prop', nature: 'nature' };
 
 function findGlbs(dir) {
   const out = [];
@@ -90,7 +90,8 @@ async function main() {
       after += now;
       perMesh.push(`${mesh.getName()}=${now}`);
     }
-    const character = kind === 'character';
+    // skinned and seen up close: characters and creatures keep fine normals and skin weights
+    const character = kind === 'character' || kind === 'creature';
     await doc.transform(
       resample({ tolerance: 1e-4 }),
       prune({ keepLeaves: true }), // keep the empty socket nodes
